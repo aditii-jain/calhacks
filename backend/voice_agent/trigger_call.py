@@ -57,7 +57,26 @@ def get_emergency_contacts(phone_number):
         key = os.environ.get("SUPABASE_ANON_KEY")
         supabase: Client = create_client(url, key)
         
-        resp = supabase.table("users").select("emergency_contacts").eq("phone_number", phone_number).execute()
+        # Try multiple phone number formats to find the user
+        phone_formats = [
+            phone_number,                          # Original format: +16692209078
+            phone_number.replace('+1', '+'),       # Remove country code: +6692209078  
+            phone_number.replace('+', ''),         # No plus: 16692209078
+            phone_number.replace('+1', ''),        # No country code or plus: 6692209078
+        ]
+        
+        resp = None
+        for phone_format in phone_formats:
+            print(f"📱 Trying phone format: {phone_format}")
+            resp = supabase.table("users").select("emergency_contacts, phone_number").eq("phone_number", phone_format).execute()
+            if resp.data:
+                print(f"📱 Found user with phone format: {phone_format}")
+                break
+        
+        if not resp or not resp.data:
+            print(f"📱 No user found with any phone format. Tried: {phone_formats}")
+            return []
+            
         print(f"📱 Supabase response: {resp.data}")
         
         if resp.data and len(resp.data) > 0:
