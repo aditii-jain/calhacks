@@ -165,31 +165,42 @@ class MockTwitterApp {
         postBtn.disabled = true;
 
         try {
-            // Combine text and location
+            // Create post object for display (keeping location separate)
+            const post = {
+                image: null,
+                timestamp: new Date().toISOString(),
+                text: text,
+                location: location || null
+            };
+            
+            // Create server post object (combining text and location)
             let combinedText = text;
             if (location) {
                 combinedText = text + ' ' + location;
             }
-            // Create post object with only required fields
-            const post = {
+            const serverPost = {
                 image: null,
-                timestamp: new Date().toISOString(),
+                timestamp: post.timestamp,
                 text: combinedText
             };
             // Handle image if present
             if (this.currentImageFile) {
-                post.image = await this.convertImageToBase64(this.currentImageFile);
+                const imageBase64 = await this.convertImageToBase64(this.currentImageFile);
+                post.image = imageBase64;
+                serverPost.image = imageBase64;
             }
-            // Add post to feed
-            this.addPostToFeed(post);
-            // Save post to JSON file
+            // Save post to database (with combined text+location)
             await fetch('http://localhost:8000/save-post', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(post)
+                body: JSON.stringify(serverPost)
             });
+            
+            // Refresh posts from database to show the new post
+            await this.loadPostsFromServer();
+            
             // Reset form
             this.resetComposer();
             // Show success message
@@ -269,6 +280,11 @@ class MockTwitterApp {
                         <img src="${post.image}" alt="Post image" loading="lazy">
                     </div>
                 ` : ''}
+                ${post.location ? `
+                    <div class="post-location">
+                        📍 ${post.location}
+                    </div>
+                ` : ''}
             </div>
         `;
         return postDiv;
@@ -335,54 +351,105 @@ class MockTwitterApp {
     }
 
     loadSamplePosts() {
-        const samplePosts = [
-            {
-                text: '🚨 URGENT: Major earthquake felt in downtown San Jose! Buildings shaking, people evacuating. Stay safe everyone! #earthquake #SanJose',
-                image: null,
-                location: 'San Jose, CA',
-                timestamp: new Date(Date.now() - 300000).toISOString(),
-            },
-            {
-                text: 'Wildfire spotted near Highway 101. Smoke visible from miles away. Authorities are responding. #wildfire #emergency',
-                image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI0ZGNkIzNSIvPjx0ZXh0IHg9IjIwMCIgeT0iMTUwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+V2lsZGZpcmUgSW1hZ2U8L3RleHQ+PC9zdmc+',
-                location: 'Palo Alto, CA',
-                timestamp: new Date(Date.now() - 600000).toISOString(),
-            },
-            {
-                text: 'Flooding reported on Market Street. Water levels rising rapidly. Avoid the area if possible. Emergency services on scene.',
-                image: null,
-                location: 'San Francisco, CA',
-                timestamp: new Date(Date.now() - 900000).toISOString(),
+        // Load posts from server (database) instead of hardcoded samples
+        this.loadPostsFromServer();
+    }
+
+    async loadPostsFromServer() {
+        try {
+            console.log('📡 Fetching posts from server...');
+            
+            const response = await fetch('http://localhost:8000/get-posts');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                console.log(`✅ Loaded ${result.total_count} posts from ${result.source}`);
+                
+                // Clear existing posts
+                this.posts = [];
+                const postsFeed = document.getElementById('posts-feed');
+                postsFeed.innerHTML = '';
+                
+                // Add each post from the database to the feed
+                if (result.posts && result.posts.length > 0) {
+                    result.posts.forEach(post => {
+                        // Parse location from text if it was stored combined
+                        const { text, location } = this.parseTextAndLocation(post.text);
+                        
+                        const displayPost = {
+                            text: text,
+                            image: post.image,
+                            location: location,
+                            timestamp: post.timestamp
+                        };
+                        
+                        this.posts.push(displayPost);
+                        this.renderPost(displayPost);
+                    });
+                } else {
+                    console.log('📭 No posts found in database');
+                    // Show a message when no posts exist
+                    this.showNoPosts();
+                }
+            } else {
+                throw new Error(result.message || 'Failed to load posts');
+            }
+            
+        } catch (error) {
+            console.error('❌ Failed to load posts from server:', error);
+            // Fall back to showing a message about the issue
+            this.showLoadError();
+        }
+    }
+
+    parseTextAndLocation(combinedText) {
+        // Try to extract location from combined text
+        // Look for common location patterns at the end
+        const locationPatterns = [
+            /\s+(San Jose, CA|San Francisco, CA|Palo Alto, CA|Oakland, CA|Berkeley, CA)$/i
         ];
-        // Add sample posts to feed and save to JSON
-        samplePosts.forEach(async (post) => {
-            // Combine text and location
-            let combinedText = post.text;
-            if (post.location) {
-                combinedText = post.text + ' ' + post.location;
+        
+        for (const pattern of locationPatterns) {
+            const match = combinedText.match(pattern);
+            if (match) {
+                const location = match[1];
+                const text = combinedText.replace(pattern, '').trim();
+                return { text, location };
             }
-            // Only keep required fields
-            const minimalPost = {
-                image: post.image,
-                timestamp: post.timestamp,
-                text: combinedText
-            };
-            this.posts.push(minimalPost);
-            this.renderPost(minimalPost);
-            // Save to JSON file
-            try {
-                await fetch('http://localhost:8000/save-post', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(minimalPost)
-                });
-            } catch (error) {
-                console.error('Error saving sample post:', error);
-            }
-        });
+        }
+        
+        // If no location pattern found, return original text
+        return { text: combinedText, location: null };
+    }
+
+    showNoPosts() {
+        const postsFeed = document.getElementById('posts-feed');
+        postsFeed.innerHTML = `
+            <div class="no-posts-message" style="padding: 40px 20px; text-align: center; color: #657786;">
+                <div style="font-size: 48px; margin-bottom: 16px;">📭</div>
+                <h3 style="margin-bottom: 8px; color: #14171a;">No posts yet</h3>
+                <p>Be the first to report emergency information!</p>
+            </div>
+        `;
+    }
+
+    showLoadError() {
+        const postsFeed = document.getElementById('posts-feed');
+        postsFeed.innerHTML = `
+            <div class="error-message" style="padding: 40px 20px; text-align: center; color: #e0245e;">
+                <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+                <h3 style="margin-bottom: 8px;">Failed to load posts</h3>
+                <p style="color: #657786;">Please check if the server is running and try refreshing the page.</p>
+                <button onclick="app.loadPostsFromServer()" style="margin-top: 16px; padding: 8px 16px; background: #1da1f2; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Try Again
+                </button>
+            </div>
+        `;
     }
 }
 

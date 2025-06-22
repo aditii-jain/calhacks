@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     gemini_api_key: Optional[str] = None
     
     class Config:
-        env_file = ".env"
+        env_file = [".env", "../.env", "../../.env"]  # Try multiple paths
         case_sensitive = False
 
 # Global settings instance

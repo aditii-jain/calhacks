@@ -69,15 +69,150 @@ coverage.xml
 model/sample/california_fires/*.jpg
 model/sample/california_fires/classification_results.json
 
-# Node.js / npm
+# ==========================================
+# Node.js / JavaScript / TypeScript
+# ==========================================
+
+# Dependencies
 node_modules/
+jspm_packages/
+
+# Package managers
 package-lock.json
 yarn.lock
-npm-debug.log*
+pnpm-lock.yaml
 
-# Vercel
+# npm logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
+.grunt
+
+# Bower dependency directory (https://bower.io/)
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons (https://nodejs.org/api/addons.html)
+build/Release
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# TypeScript v1 declaration files
+typings/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# ==========================================
+# Next.js specific
+# ==========================================
+
+# Next.js build output
+.next/
+out/
+
+# Next.js cache
+.next/cache/
+
+# Next.js static files
+.next/static/
+
+# Vercel deployment
 .vercel/
 .vercel
+
+# Next.js production build
+build/
+
+# Static generation
+out/
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ==========================================
+# React / Frontend specific
+# ==========================================
+
+# Create React App
+build/
+*.tgz
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Temporary folders
+tmp/
+temp/
+
+# ==========================================
+# Development tools
+# ==========================================
+
+# ESLint cache
+.eslintcache
+
+# Prettier cache
+.prettiercache
+
+# Stylelint cache
+.stylelintcache
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ==========================================
+# Python (existing entries)
+# ==========================================
+
 # Python
 __pycache__/
 *.py[cod]
