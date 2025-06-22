@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { MapPin, Phone, Bell, Settings, Shield, Navigation, Users } from "lucide-react"
+import CrisisMap from "@/components/CrisisMap"
 
 export default function DashboardPage() {
   const [hasActiveAlert] = useState(true)
@@ -98,49 +99,7 @@ export default function DashboardPage() {
             </Card>
 
             {/* Crisis Map */}
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center text-[#2B2D42]">
-                  <MapPin className="h-5 w-5 mr-2 text-[#4B5D67]" />
-                  Crisis Map
-                </CardTitle>
-                <CardDescription className="text-[#2B2D42]/70">
-                  Real-time emergency monitoring in your area
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="relative h-80 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl overflow-hidden">
-                  {/* Simulated interactive map */}
-                  <div className="absolute inset-0">
-                    {/* Crisis zones */}
-                    <div className="absolute top-1/4 left-1/3 w-20 h-20 bg-red-400/40 rounded-full blur-md animate-pulse"></div>
-                    <div className="absolute bottom-1/3 right-1/4 w-16 h-16 bg-orange-400/40 rounded-full blur-md animate-pulse"></div>
-                    <div className="absolute top-1/2 left-1/2 w-12 h-12 bg-yellow-400/40 rounded-full blur-sm"></div>
-
-                    {/* User location */}
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                      <div className="w-4 h-4 bg-[#4B5D67] rounded-full border-2 border-white shadow-lg"></div>
-                    </div>
-
-                    {/* Legend */}
-                    <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-3 space-y-2">
-                      <div className="flex items-center space-x-2 text-xs">
-                        <div className="w-3 h-3 bg-red-400 rounded-full"></div>
-                        <span className="text-[#2B2D42]">Extreme Risk</span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-xs">
-                        <div className="w-3 h-3 bg-orange-400 rounded-full"></div>
-                        <span className="text-[#2B2D42]">High Risk</span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-xs">
-                        <div className="w-3 h-3 bg-[#4B5D67] rounded-full"></div>
-                        <span className="text-[#2B2D42]">Your Location</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <CrisisMap />
           </div>
 
           {/* Right Column - Call History & Quick Actions */}

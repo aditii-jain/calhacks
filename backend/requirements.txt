@@ -1,3 +1,7 @@
-vapi_server_sdk
+fastapi
+uvicorn[standard]
 python-dotenv
-flask 
+vapi_server_sdk
+supabase
+pydantic-settings
+requests 
