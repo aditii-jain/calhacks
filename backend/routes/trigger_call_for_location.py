@@ -210,8 +210,8 @@ async def trigger_call_for_location_health():
             "voice_agent_module_available": voice_agent_available,
             "vapi_api_key_configured": vapi_api_key_set,
             "voice_calls_enabled": voice_agent_available and vapi_api_key_set,
-            "assistant_id": "f761f81a-656f-4695-8ea9-c8640a0d1b37",
-            "phone_number_id": "e11d54bf-6836-451d-a100-37245567a502",
+            "assistant_id": "34596d1f-846e-43ab-b176-692417375139",
+            "phone_number_id": "81badd7d-1ee9-4681-bc91-03b1f2db11c2",
             "supported_fields": ["location", "disaster_type", "timeout_minutes"],
             "location_matching": "exact string match (case insensitive)"
         }
