@@ -4,13 +4,12 @@ class MockTwitterApp {
         this.posts = [];
         this.currentImageFile = null;
         this.initializeApp();
-        this.loadSamplePosts();
     }
 
     initializeApp() {
         this.bindEventListeners();
         this.setupTextareaAutoResize();
-        this.loadPostsFromStorage();
+        this.loadSamplePosts();
     }
 
     bindEventListeners() {
@@ -39,8 +38,6 @@ class MockTwitterApp {
                 this.submitPost();
             }
         });
-
-
 
         // Modal events
         const imageModal = document.getElementById('image-modal');
@@ -168,44 +165,46 @@ class MockTwitterApp {
         postBtn.disabled = true;
 
         try {
-            // Create post object
+            // Create post object for display (keeping location separate)
             const post = {
-                id: `post_${Date.now()}`,
-                text: text,
                 image: null,
-                location: location,
                 timestamp: new Date().toISOString(),
-                user: {
-                    username: 'Emergency User',
-                    handle: '@emergency_user',
-                    avatar: '👤'
-                }
+                text: text,
+                location: location || null
             };
-
+            
+            // Create server post object (combining text and location)
+            let combinedText = text;
+            if (location) {
+                combinedText = text + ' ' + location;
+            }
+            const serverPost = {
+                image: null,
+                timestamp: post.timestamp,
+                text: combinedText
+            };
             // Handle image if present
             if (this.currentImageFile) {
-                post.image = await this.convertImageToBase64(this.currentImageFile);
+                const imageBase64 = await this.convertImageToBase64(this.currentImageFile);
+                post.image = imageBase64;
+                serverPost.image = imageBase64;
             }
-
-            // Simulate API call delay
-            await this.delay(1500);
-
-            // Add post to feed
-            this.addPostToFeed(post);
-            this.savePostsToStorage();
-
-            // Save post to JSON file in frontend directory
-            await this.savePostToJSON(post);
-
+            // Save post to database (with combined text+location)
+            await fetch('http://localhost:8000/save-post', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(serverPost)
+            });
+            
+            // Refresh posts from database to show the new post
+            await this.loadPostsFromServer();
+            
             // Reset form
             this.resetComposer();
-            
             // Show success message
-            this.showToast('Post shared successfully! JSON file generated.', 'success');
-
-            // Simulate sending to backend (for demo)
-            this.sendToBackend(post);
-
+            this.showToast('Post shared successfully!', 'success');
         } catch (error) {
             console.error('Error submitting post:', error);
             this.showToast('Failed to post. Please try again.', 'error');
@@ -261,12 +260,16 @@ class MockTwitterApp {
     createPostElement(post) {
         const postDiv = document.createElement('div');
         postDiv.className = 'post';
+        // Use default avatar and username for all posts
+        const defaultAvatar = '👤';
+        const defaultUsername = 'Emergency User';
+        const defaultHandle = '@emergency_user';
         postDiv.innerHTML = `
             <div class="post-header">
-                <div class="avatar">${post.user.avatar}</div>
+                <div class="avatar">${defaultAvatar}</div>
                 <div class="post-meta">
-                    <span class="post-username">${post.user.username}</span>
-                    <span class="post-handle">${post.user.handle}</span>
+                    <span class="post-username">${defaultUsername}</span>
+                    <span class="post-handle">${defaultHandle}</span>
                     <span class="post-time">• ${this.formatTimestamp(post.timestamp)}</span>
                 </div>
             </div>
@@ -347,171 +350,107 @@ class MockTwitterApp {
         }, 3000);
     }
 
-    async sendToBackend(post) {
-        // Simulate sending to backend API
-        try {
-            console.log('Sending post to backend:', post);
-            
-            // This would be your actual API call
-            // const response = await fetch('/api/v1/twitter/process-post', {
-            //     method: 'POST',
-            //     headers: {
-            //         'Content-Type': 'application/json',
-            //     },
-            //     body: JSON.stringify(post)
-            // });
-            
-            // For demo purposes, just log
-            console.log('Post sent to backend successfully');
-            
-        } catch (error) {
-            console.error('Failed to send to backend:', error);
-        }
-    }
-
     loadSamplePosts() {
-        const samplePosts = [
-            {
-                id: 'sample_1',
-                text: '🚨 URGENT: Major earthquake felt in downtown San Jose! Buildings shaking, people evacuating. Stay safe everyone! #earthquake #SanJose',
-                image: null,
-                location: 'San Jose, CA',
-                timestamp: new Date(Date.now() - 300000).toISOString(), // 5 minutes ago
-                user: {
-                    username: 'SF Emergency',
-                    handle: '@sf_emergency',
-                    avatar: '🚨'
-                }
-            },
-            {
-                id: 'sample_2',
-                text: 'Wildfire spotted near Highway 101. Smoke visible from miles away. Authorities are responding. #wildfire #emergency',
-                image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI0ZGNkIzNSIvPjx0ZXh0IHg9IjIwMCIgeT0iMTUwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+V2lsZGZpcmUgSW1hZ2U8L3RleHQ+PC9zdmc+',
-                location: 'Palo Alto, CA',
-                timestamp: new Date(Date.now() - 600000).toISOString(), // 10 minutes ago
-                user: {
-                    username: 'Fire Watch',
-                    handle: '@fire_watch',
-                    avatar: '🔥'
-                }
-            },
-            {
-                id: 'sample_3',
-                text: 'Flooding reported on Market Street. Water levels rising rapidly. Avoid the area if possible. Emergency services on scene.',
-                image: null,
-                location: 'San Francisco, CA',
-                timestamp: new Date(Date.now() - 900000).toISOString(), // 15 minutes ago
-                user: {
-                    username: 'Weather Alert',
-                    handle: '@weather_alert',
-                    avatar: '🌊'
-                }
-            }
-        ];
-
-        // Add sample posts to feed
-        samplePosts.forEach(post => {
-            this.posts.push(post);
-            this.renderPost(post);
-        });
+        // Load posts from server (database) instead of hardcoded samples
+        this.loadPostsFromServer();
     }
 
-    savePostsToStorage() {
+    async loadPostsFromServer() {
         try {
-            localStorage.setItem('mockTwitterPosts', JSON.stringify(this.posts.slice(0, 50))); // Keep last 50 posts
-        } catch (error) {
-            console.error('Failed to save posts to storage:', error);
-        }
-    }
-
-    loadPostsFromStorage() {
-        try {
-            const savedPosts = localStorage.getItem('mockTwitterPosts');
-            if (savedPosts) {
-                const posts = JSON.parse(savedPosts);
-                // Only load user posts (not sample posts)
-                const userPosts = posts.filter(post => post.user.handle === '@emergency_user');
-                userPosts.forEach(post => {
-                    this.posts.unshift(post);
-                    this.renderPost(post, false);
-                });
+            console.log('📡 Fetching posts from server...');
+            
+            const response = await fetch('http://localhost:8000/get-posts');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-        } catch (error) {
-            console.error('Failed to load posts from storage:', error);
-        }
-    }
-
-    delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    async savePostToJSON(post) {
-        // Create a clean JSON object with the required fields: user, photo, location, text
-        const postData = {
-            post_id: post.id,
-            user: {
-                username: post.user.username,
-                handle: post.user.handle,
-                avatar: post.user.avatar
-            },
-            text: post.text || '',
-            photo: post.image || null,
-            location: post.location || '',
-            metadata: {
-                timestamp: post.timestamp,
-                created_at: new Date(post.timestamp).toLocaleString(),
-                export_timestamp: new Date().toISOString()
-            }
-        };
-
-        // Send to backend to save to JSON file
-        try {
-            const response = await fetch('/api/v1/save-post-json', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(postData)
-            });
-
-            if (response.ok) {
-                console.log('Post saved to JSON file successfully');
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                console.log(`✅ Loaded ${result.total_count} posts from ${result.source}`);
+                
+                // Clear existing posts
+                this.posts = [];
+                const postsFeed = document.getElementById('posts-feed');
+                postsFeed.innerHTML = '';
+                
+                // Add each post from the database to the feed
+                if (result.posts && result.posts.length > 0) {
+                    result.posts.forEach(post => {
+                        // Parse location from text if it was stored combined
+                        const { text, location } = this.parseTextAndLocation(post.text);
+                        
+                        const displayPost = {
+                            text: text,
+                            image: post.image,
+                            location: location,
+                            timestamp: post.timestamp
+                        };
+                        
+                        this.posts.push(displayPost);
+                        this.renderPost(displayPost);
+                    });
+                } else {
+                    console.log('📭 No posts found in database');
+                    // Show a message when no posts exist
+                    this.showNoPosts();
+                }
             } else {
-                console.error('Failed to save post to JSON file');
-                // Fallback: save to localStorage for now
-                this.saveToLocalStorage(postData);
+                throw new Error(result.message || 'Failed to load posts');
             }
+            
         } catch (error) {
-            console.error('Error saving post to JSON file:', error);
-            // Fallback: save to localStorage
-            this.saveToLocalStorage(postData);
+            console.error('❌ Failed to load posts from server:', error);
+            // Fall back to showing a message about the issue
+            this.showLoadError();
         }
     }
 
-    saveToLocalStorage(postData) {
-        // Fallback method to save posts locally
-        let savedPosts = [];
-        try {
-            const existingData = localStorage.getItem('twitterPostsJSON');
-            if (existingData) {
-                savedPosts = JSON.parse(existingData);
-            }
-        } catch (error) {
-            console.error('Error reading localStorage:', error);
-        }
-
-        savedPosts.push(postData);
+    parseTextAndLocation(combinedText) {
+        // Try to extract location from combined text
+        // Look for common location patterns at the end
+        const locationPatterns = [
+            /\s+(San Jose, CA|San Francisco, CA|Palo Alto, CA|Oakland, CA|Berkeley, CA)$/i
+        ];
         
-        // Keep only last 100 posts to prevent localStorage from getting too large
-        if (savedPosts.length > 100) {
-            savedPosts = savedPosts.slice(-100);
+        for (const pattern of locationPatterns) {
+            const match = combinedText.match(pattern);
+            if (match) {
+                const location = match[1];
+                const text = combinedText.replace(pattern, '').trim();
+                return { text, location };
+            }
         }
-
-        localStorage.setItem('twitterPostsJSON', JSON.stringify(savedPosts, null, 2));
-        console.log('Post saved to localStorage as fallback');
+        
+        // If no location pattern found, return original text
+        return { text: combinedText, location: null };
     }
 
+    showNoPosts() {
+        const postsFeed = document.getElementById('posts-feed');
+        postsFeed.innerHTML = `
+            <div class="no-posts-message" style="padding: 40px 20px; text-align: center; color: #657786;">
+                <div style="font-size: 48px; margin-bottom: 16px;">📭</div>
+                <h3 style="margin-bottom: 8px; color: #14171a;">No posts yet</h3>
+                <p>Be the first to report emergency information!</p>
+            </div>
+        `;
+    }
 
+    showLoadError() {
+        const postsFeed = document.getElementById('posts-feed');
+        postsFeed.innerHTML = `
+            <div class="error-message" style="padding: 40px 20px; text-align: center; color: #e0245e;">
+                <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+                <h3 style="margin-bottom: 8px;">Failed to load posts</h3>
+                <p style="color: #657786;">Please check if the server is running and try refreshing the page.</p>
+                <button onclick="app.loadPostsFromServer()" style="margin-top: 16px; padding: 8px 16px; background: #1da1f2; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Try Again
+                </button>
+            </div>
+        `;
+    }
 }
 
 // Initialize the app when DOM is loaded
