@@ -128,10 +128,12 @@ app.include_router(red_zone.router, prefix="/api/v1", tags=["red-zone"])
 app.include_router(crisis_map.router, prefix="/api/v1", tags=["crisis-map"])
 
 if __name__ == "__main__":
+    import os
+    port = int(os.environ.get("PORT", 8000))
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
-        reload=True,
+        port=port,
+        reload=False,  # Disable reload in production
         log_level="info"
     )
