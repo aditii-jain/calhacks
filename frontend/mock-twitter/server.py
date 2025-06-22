@@ -56,7 +56,104 @@ class PostsHandler(SimpleHTTPRequestHandler):
         if self.path == '/':
             # Serve the main HTML file
             self.path = '/index.html'
-        return SimpleHTTPRequestHandler.do_GET(self)
+            return SimpleHTTPRequestHandler.do_GET(self)
+        elif self.path == '/get-posts':
+            # Fetch posts from database
+            self._handle_get_posts()
+            return
+        else:
+            return SimpleHTTPRequestHandler.do_GET(self)
+
+    def _handle_get_posts(self):
+        """Handle GET request for fetching posts from database"""
+        try:
+            # Try to get posts from Supabase first
+            posts_from_db = self._get_posts_from_supabase()
+            
+            # If Supabase fails, fall back to local JSON
+            if not posts_from_db:
+                posts_from_db = self._get_posts_from_json()
+            
+            # Send response
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            
+            response = {
+                'status': 'success',
+                'posts': posts_from_db,
+                'total_count': len(posts_from_db),
+                'source': 'supabase' if self.supabase_client and posts_from_db else 'local_json'
+            }
+            
+            self.wfile.write(json.dumps(response).encode())
+            
+        except Exception as e:
+            print(f"❌ Error fetching posts: {e}")
+            self.send_response(500)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            
+            error_response = {
+                'status': 'error',
+                'message': 'Failed to fetch posts',
+                'posts': [],
+                'total_count': 0
+            }
+            
+            self.wfile.write(json.dumps(error_response).encode())
+
+    def _get_posts_from_supabase(self):
+        """Fetch posts from Supabase database"""
+        if not self.supabase_client:
+            print("⚠️  Supabase client not available for fetching posts")
+            return []
+        
+        try:
+            # Fetch all posts ordered by timestamp (newest first)
+            response = self.supabase_client.table('mock_twitter_posts').select('*').order('timestamp', desc=True).execute()
+            
+            if response.data:
+                print(f"✅ Fetched {len(response.data)} posts from Supabase")
+                # Convert database format to frontend format
+                posts = []
+                for db_post in response.data:
+                    post = {
+                        'text': db_post.get('text', ''),
+                        'image': db_post.get('image'),
+                        'timestamp': db_post.get('timestamp', ''),
+                        'location': None  # Extract location from text if needed
+                    }
+                    posts.append(post)
+                return posts
+            else:
+                print("📭 No posts found in Supabase")
+                return []
+                
+        except Exception as e:
+            print(f"❌ Failed to fetch from Supabase: {e}")
+            return []
+
+    def _get_posts_from_json(self):
+        """Fetch posts from local JSON file (fallback)"""
+        try:
+            posts_file = 'posts.json'
+            if os.path.exists(posts_file):
+                with open(posts_file, 'r') as f:
+                    all_posts = json.load(f)
+                
+                posts = all_posts.get('posts', [])
+                # Sort by timestamp (newest first)
+                posts.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+                print(f"✅ Fetched {len(posts)} posts from local JSON")
+                return posts
+            else:
+                print("📭 No local JSON file found")
+                return []
+                
+        except Exception as e:
+            print(f"❌ Failed to fetch from JSON: {e}")
+            return []
 
     def do_POST(self):
         if self.path == '/save-post':
@@ -165,23 +262,26 @@ if __name__ == '__main__':
     print("\n🚨 Mock Twitter Server with Supabase Integration")
     print("=" * 50)
     
-    # Initialize posts.json file (reset on startup)
+    # Initialize posts.json file if it doesn't exist (but don't reset existing data)
     posts_file = 'posts.json'
-    initial_posts = {
-        'metadata': {
-            'total_posts': 0,
-            'last_updated': None,
-            'server_started': datetime.now().isoformat()
-        },
-        'posts': []
-    }
-    
-    try:
-        with open(posts_file, 'w') as f:
-            json.dump(initial_posts, f, indent=2)
-        print(f"✅ Reset {posts_file} for new session")
-    except Exception as e:
-        print(f"⚠️  Could not reset {posts_file}: {e}")
+    if not os.path.exists(posts_file):
+        initial_posts = {
+            'metadata': {
+                'total_posts': 0,
+                'last_updated': None,
+                'server_started': datetime.now().isoformat()
+            },
+            'posts': []
+        }
+        
+        try:
+            with open(posts_file, 'w') as f:
+                json.dump(initial_posts, f, indent=2)
+            print(f"✅ Created initial {posts_file}")
+        except Exception as e:
+            print(f"⚠️  Could not create {posts_file}: {e}")
+    else:
+        print(f"📄 Using existing {posts_file} as backup storage")
     
     # Test Supabase connection
     if SUPABASE_AVAILABLE and settings and settings.supabase_url and settings.supabase_service_key:
