@@ -1,5 +1,41 @@
 import re
 
+def extract_shelter_location_gemini(transcript):
+    """
+    Use Gemini to extract the shelter location from a transcript.
+    """
+    import os
+    import google.generativeai as genai
+    API_KEY = os.getenv('GOOGLE_API_KEY')
+    if not API_KEY:
+        raise RuntimeError("GOOGLE_API_KEY environment variable not set")
+    genai.configure(api_key=API_KEY)
+
+    prompt = f"""
+You are an expert assistant. Given the following emergency call transcript, extract the most likely shelter location mentioned by the user or the AI. 
+If no shelter is mentioned, return an empty string.
+
+Return ONLY a valid JSON object with this exact key:
+{{
+    "shelter_location": "string"
+}}
+
+Transcript:
+{transcript}
+"""
+    model = genai.GenerativeModel('gemini-2.5-flash')
+    gemini_response = model.generate_content(prompt)
+    response_text = gemini_response.text.strip()
+    # Extract JSON from response
+    start_idx = response_text.find('{')
+    end_idx = response_text.rfind('}') + 1
+    if start_idx == -1 or end_idx == 0:
+        return None
+    json_str = response_text[start_idx:end_idx]
+    import json
+    result = json.loads(json_str)
+    return result.get('shelter_location', None)
+
 def analyze_transcript(transcript):
     """
     Analyze a conversation transcript to determine user's decisions about:
@@ -81,7 +117,7 @@ def analyze_transcript(transcript):
         analysis["shelter_directions_confidence"] = min(shelter_no_matches * 25, 100)
         analysis["key_phrases"].append("User declined shelter directions")
     
-    # Extract shelter location
+    # Extract shelter location using patterns
     for pattern in shelter_patterns:
         match = re.search(pattern, transcript_lower)
         if match:
@@ -92,6 +128,15 @@ def analyze_transcript(transcript):
             analysis["shelter_location"] = shelter_location.title()  # Capitalize properly
             analysis["key_phrases"].append(f"Shelter mentioned: {analysis['shelter_location']}")
             break
+    
+    # Extract shelter location using Gemini
+    try:
+        gemini_shelter_location = extract_shelter_location_gemini(transcript)
+        if gemini_shelter_location:
+            analysis["shelter_location"] = gemini_shelter_location
+            analysis["key_phrases"].append(f"Shelter mentioned (Gemini): {gemini_shelter_location}")
+    except Exception as e:
+        print(f"[DEBUG] Gemini shelter extraction failed: {e}")
     
     return analysis
 
@@ -222,4 +267,4 @@ if __name__ == "__main__":
         else:
             print("❌ No transcript provided")
     else:
-        print("❌ Invalid choice") 
+        print("❌ Invalid choice")

@@ -15,7 +15,7 @@ data_url = f"data:image/jpeg;base64,{b64}"
 # Prepare payload
 payload = {
     "image_data": data_url,
-    "tweet_text": "RT @Gizmodo: Wildfires raging through Northern California are terrifying https://t.co/dI73RFzX2i https://t.co/k4KnvIimsU",
+    "tweet_text": "Wildfires raging through San Francisco are crazy!!!!! There are so many people affected by this disaster!!! #CaliforniaFires",
     "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 }
 

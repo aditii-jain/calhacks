@@ -2,3 +2,6 @@ google-generativeai==0.8.3
 requests==2.31.0
 Pillow
 supabase
+vapi_server_sdk
+python-dotenv
+flask
