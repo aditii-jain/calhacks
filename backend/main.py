@@ -150,16 +150,20 @@ async def health_check():
             "/api/v1/crisis-map/data",
             "/api/v1/crisis-map/summary",
             "/api/v1/crisis-map/disaster-types",
-            "/api/v1/crisis-map/health"
+            "/api/v1/crisis-map/health",
+            # Orchestrate endpoints
+            "/api/v1/orchestrate",
+            "/api/v1/orchestrate/health"
         ]
     }
 
 # Include routers
-from routes import process, users, red_zone, crisis_map
+from routes import process, users, red_zone, crisis_map, orchestrate
 app.include_router(process.router, prefix="/api/v1", tags=["processing"])
 app.include_router(users.router, prefix="/api/v1", tags=["users"])
 app.include_router(red_zone.router, prefix="/api/v1", tags=["red-zone"])
 app.include_router(crisis_map.router, prefix="/api/v1", tags=["crisis-map"])
+app.include_router(orchestrate.router, prefix="/api/v1", tags=["orchestrate"])
 
 if __name__ == "__main__":
     import os
