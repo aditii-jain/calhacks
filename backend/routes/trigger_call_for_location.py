@@ -41,7 +41,7 @@ def trigger_call_for_location(location: str, disaster_type: str, timeout_minutes
     
     try:
         # Query all users from the database
-        users_result = supabase.table("users").select("phone_number, location").execute()
+        users_result = supabase.table("active_users").select("phone_number, location").execute()
         logger.info(f"Found {len(users_result.data)} total users in database")
         
         if not users_result.data:
@@ -196,7 +196,7 @@ async def trigger_call_for_location_health():
     try:
         # Test database connection
         supabase = get_supabase_client()
-        result = supabase.table("users").select("id").limit(1).execute()
+        result = supabase.table("active_users").select("id").limit(1).execute()
         
         # Check if voice agent is available
         voice_agent_available = trigger_emergency_call is not None

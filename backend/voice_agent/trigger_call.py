@@ -10,7 +10,7 @@ load_dotenv()
 # Vapi API configuration
 VAPI_API_KEY = os.getenv("VAPI_API_KEY")
 VAPI_BASE_URL = "https://api.vapi.ai"
-TEXTBELT_API_KEY = os.getenv("TEXTBELT_API_KEY") or "558eda4c96a2cc3f0eb6d8f0d12fc6a4b29eb98dKUoSGxDY8Sdpm4NRujkHGqFp1"
+TEXTBELT_API_KEY = os.getenv("TEXTBELT_API_KEY")
 TEXTBELT_URL = "https://textbelt.com/text"
 
 def make_vapi_request(method, endpoint, data=None):
@@ -57,24 +57,39 @@ def get_emergency_contacts(phone_number):
         key = os.environ.get("SUPABASE_ANON_KEY")
         supabase: Client = create_client(url, key)
         
+        # First, let's see what users actually exist in the database
+        print(f"📱 DEBUG: Checking all users in active_users table...")
+        all_users = supabase.table("active_users").select("phone_number, id, name").execute()
+        print(f"📱 DEBUG: Found {len(all_users.data)} total users:")
+        for user in all_users.data[:5]:  # Show first 5 users
+            print(f"📱 DEBUG: User - Phone: {user.get('phone_number')}, Name: {user.get('name')}")
+        
         # Try multiple phone number formats to find the user
         phone_formats = [
             phone_number,                          # Original format: +16692209078
             phone_number.replace('+1', '+'),       # Remove country code: +6692209078  
             phone_number.replace('+', ''),         # No plus: 16692209078
             phone_number.replace('+1', ''),        # No country code or plus: 6692209078
+            '+1' + phone_number.replace('+', '').replace('1', '', 1) if phone_number.startswith('+1') else '+1' + phone_number.replace('+', ''),  # Ensure +1 prefix
         ]
+        
+        # Remove duplicates while preserving order
+        phone_formats = list(dict.fromkeys(phone_formats))
+        print(f"📱 DEBUG: Will try these phone formats: {phone_formats}")
         
         resp = None
         for phone_format in phone_formats:
-            print(f"📱 Trying phone format: {phone_format}")
-            resp = supabase.table("users").select("emergency_contacts, phone_number").eq("phone_number", phone_format).execute()
+            print(f"📱 Trying phone format: '{phone_format}'")
+            resp = supabase.table("active_users").select("emergency_contacts, phone_number, name").eq("phone_number", phone_format).execute()
+            print(f"📱 Query result for '{phone_format}': {len(resp.data)} users found")
             if resp.data:
-                print(f"📱 Found user with phone format: {phone_format}")
+                print(f"📱 ✅ Found user with phone format: '{phone_format}' - User: {resp.data[0].get('name')}")
                 break
         
         if not resp or not resp.data:
-            print(f"📱 No user found with any phone format. Tried: {phone_formats}")
+            print(f"📱 ❌ No user found with any phone format.")
+            print(f"📱 ❌ Searched for: {phone_formats}")
+            print(f"📱 ❌ Available phone numbers in DB: {[u.get('phone_number') for u in all_users.data[:10]]}")
             return []
             
         print(f"📱 Supabase response: {resp.data}")
@@ -115,6 +130,12 @@ def send_sms(phone, message):
     try:
         print(f"📱 Attempting to send SMS to {phone}")
         print(f"📱 Message: {message}")
+        
+        # Check if TextBelt API key is available
+        if not TEXTBELT_API_KEY:
+            print(f"❌ TEXTBELT_API_KEY environment variable not set")
+            return {"success": False, "error": "TEXTBELT_API_KEY not configured"}
+        
         print(f"📱 Using TextBelt API key: {TEXTBELT_API_KEY[:10]}...")
         
         resp = requests.post(
