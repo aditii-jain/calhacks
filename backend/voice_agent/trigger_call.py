@@ -3,7 +3,7 @@ import time
 import requests
 from vapi import Vapi
 from dotenv import load_dotenv
-from analyze_transcript import analyze_transcript, get_google_maps_pin
+from .analyze_transcript import analyze_transcript, get_google_maps_pin
 
 load_dotenv()
 

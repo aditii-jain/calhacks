@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 # Import the trigger call function
 try:
     from voice_agent.trigger_call import trigger_emergency_call
+    logger.info("Voice agent imported successfully")
 except ImportError as e:
-    logger.error(f"Failed to import trigger_emergency_call: {e}")
+    logger.warning(f"Voice agent not available: {e}")
     trigger_emergency_call = None
 
 router = APIRouter()
@@ -68,15 +69,17 @@ def trigger_call_for_location(location: str, disaster_type: str, timeout_minutes
             if address and phone_number and address.strip().lower() == location.strip().lower():
                 logger.info(f"MATCH: Triggering emergency call for {phone_number} at {address}")
                 
-                # Check if trigger_emergency_call is available
-                if trigger_emergency_call is None:
-                    logger.warning("Voice agent not available - simulating emergency call")
+                # Check if trigger_emergency_call is available and VAPI API key is set
+                vapi_api_key = os.getenv("VAPI_API_KEY")
+                if trigger_emergency_call is None or not vapi_api_key:
+                    logger.warning(f"Voice agent not available - trigger_emergency_call: {trigger_emergency_call is not None}, VAPI_API_KEY: {bool(vapi_api_key)}")
                     result = {
                         "status": "simulated", 
-                        "message": "Voice agent not available in this environment",
+                        "message": f"Voice agent not available - Missing: {'VAPI_API_KEY' if not vapi_api_key else 'voice agent module'}",
                         "phone_number": phone_number,
                         "location": address,
-                        "disaster_type": disaster_type
+                        "disaster_type": disaster_type,
+                        "would_call": True
                     }
                 else:
                     try:
@@ -184,13 +187,18 @@ async def trigger_call_for_location_health():
         
         # Check if voice agent is available
         voice_agent_available = trigger_emergency_call is not None
+        vapi_api_key_set = bool(os.getenv("VAPI_API_KEY"))
         
         return {
             "status": "healthy",
             "service": "trigger_call_for_location",
             "database_connected": True,
             "users_table_accessible": True,
-            "voice_agent_available": voice_agent_available,
+            "voice_agent_module_available": voice_agent_available,
+            "vapi_api_key_configured": vapi_api_key_set,
+            "voice_calls_enabled": voice_agent_available and vapi_api_key_set,
+            "assistant_id": "f761f81a-656f-4695-8ea9-c8640a0d1b37",
+            "phone_number_id": "e11d54bf-6836-451d-a100-37245567a502",
             "supported_fields": ["location", "disaster_type", "timeout_minutes"],
             "location_matching": "exact string match (case insensitive)"
         }

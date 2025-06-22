@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 python-dotenv
 vapi_server_sdk
+vapi-python
 supabase
 pydantic-settings
 requests
