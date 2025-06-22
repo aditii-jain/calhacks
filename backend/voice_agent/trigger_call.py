@@ -149,8 +149,8 @@ def trigger_emergency_call(phone_number: str, location: str, natural_disaster: s
     """
     
     # Configuration
-    assistant_id = "34596d1f-846e-43ab-b176-692417375139"
-    phone_number_id = "81badd7d-1ee9-4681-bc91-03b1f2db11c2"
+    assistant_id = "d97df5ae-d4b9-4644-9836-e22a19e0fbea"
+    phone_number_id = "4107aab6-6685-4a40-9344-586b9490b711"
     
     # Validate phone number format
     if not phone_number.startswith('+'):
