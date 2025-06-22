@@ -112,19 +112,20 @@ async def health_check():
             "/api/v1/users/location-radius",
             # Red Zone emergency endpoints
             "/api/v1/red-zone/trigger",
-            # Twitter JSON file endpoints
-            "/api/v1/save-post-json",
-            "/api/v1/posts-json",
-            "/api/v1/clear-posts-json"
+            # Crisis Map endpoints
+            "/api/v1/crisis-map/data",
+            "/api/v1/crisis-map/summary",
+            "/api/v1/crisis-map/disaster-types",
+            "/api/v1/crisis-map/health"
         ]
     }
 
 # Include routers
-from routes import process, users, red_zone, twitter_json
+from routes import process, users, red_zone, crisis_map
 app.include_router(process.router, prefix="/api/v1", tags=["processing"])
 app.include_router(users.router, prefix="/api/v1", tags=["users"])
 app.include_router(red_zone.router, prefix="/api/v1", tags=["red-zone"])
-app.include_router(twitter_json.router, prefix="/api/v1", tags=["twitter-json"])
+app.include_router(crisis_map.router, prefix="/api/v1", tags=["crisis-map"])
 
 if __name__ == "__main__":
     uvicorn.run(

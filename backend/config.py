@@ -29,10 +29,12 @@ class Settings(BaseSettings):
     # Optional API Keys (for later integration)
     claude_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
+    vapi_api_key: Optional[str] = None  # Add VAPI API key support
     
     class Config:
         env_file = [".env", "../.env", "../../.env"]  # Try multiple paths
         case_sensitive = False
+        extra = "ignore"  # Ignore extra environment variables
 
 # Global settings instance
 settings = Settings() 
