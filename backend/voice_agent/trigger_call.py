@@ -128,7 +128,16 @@ def get_emergency_contacts(phone_number):
 def send_sms(phone, message):
     """Send SMS using TextBelt API"""
     try:
-        print(f"📱 Attempting to send SMS to {phone}")
+        # Strip +1 country code for US numbers (TextBelt prefers US numbers without +1)
+        clean_phone = phone
+        if phone.startswith('+1'):
+            clean_phone = phone[2:]  # Remove +1 prefix
+            print(f"📱 Stripped +1 from phone number: {phone} -> {clean_phone}")
+        elif phone.startswith('+'):
+            # For other countries, keep the + but log it
+            print(f"📱 International number detected: {phone}")
+        
+        print(f"📱 Attempting to send SMS to {clean_phone} (original: {phone})")
         print(f"📱 Message: {message}")
         
         # Check if TextBelt API key is available
@@ -141,7 +150,7 @@ def send_sms(phone, message):
         resp = requests.post(
             TEXTBELT_URL,
             data={
-                'phone': phone,
+                'phone': clean_phone,  # Use cleaned phone number
                 'message': message,
                 'key': TEXTBELT_API_KEY
             },
