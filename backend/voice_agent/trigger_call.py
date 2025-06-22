@@ -1,49 +1,74 @@
 import os
 import time
 import requests
-from vapi import Vapi
+import json
 from dotenv import load_dotenv
 from .analyze_transcript import analyze_transcript, get_google_maps_pin
 
 load_dotenv()
 
-# Initialize the Vapi client
-try:
-    client = Vapi(token=os.getenv("VAPI_API_KEY"))
-    print("Successfully connected to Vapi client")
-except Exception as error:
-    print(f"Error connecting to Vapi client: {error}")
-    raise error
-
+# Vapi API configuration
+VAPI_API_KEY = os.getenv("VAPI_API_KEY")
+VAPI_BASE_URL = "https://api.vapi.ai"
 TEXTBELT_API_KEY = os.getenv("TEXTBELT_API_KEY") or "558eda4c96a2cc3f0eb6d8f0d12fc6a4b29eb98dKUoSGxDY8Sdpm4NRujkHGqFp1"
 TEXTBELT_URL = "https://textbelt.com/text"
 
+def make_vapi_request(method, endpoint, data=None):
+    """Make a request to the Vapi API using requests library"""
+    if not VAPI_API_KEY:
+        raise RuntimeError("VAPI_API_KEY environment variable not set")
+    
+    headers = {
+        "Authorization": f"Bearer {VAPI_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    url = f"{VAPI_BASE_URL}{endpoint}"
+    
+    if method.upper() == "POST":
+        response = requests.post(url, headers=headers, json=data, timeout=30)
+    elif method.upper() == "GET":
+        response = requests.get(url, headers=headers, timeout=30)
+    else:
+        raise ValueError(f"Unsupported HTTP method: {method}")
+    
+    response.raise_for_status()
+    return response.json()
+
 # Dummy function to get emergency contacts from Supabase
-# Replace with real Supabase query
 def get_emergency_contacts(phone_number):
-    # Query Supabase for the user with the given phone number
-    from supabase import create_client, Client
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_ANON_KEY")
-    supabase: Client = create_client(url, key)
-    resp = supabase.table("users").select("emergency_contacts").eq("phone_number", phone_number).execute()
-    if resp.data and resp.data[0].get("emergency_contacts"):
-        contacts = resp.data[0]["emergency_contacts"]
-        # contacts is expected to be a list of dicts with 'phone' keys
-        return [c["phone"] for c in contacts if "phone" in c]
+    """Get emergency contacts for a user from Supabase"""
+    try:
+        from supabase import create_client, Client
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_ANON_KEY")
+        supabase: Client = create_client(url, key)
+        resp = supabase.table("users").select("emergency_contacts").eq("phone_number", phone_number).execute()
+        if resp.data and resp.data[0].get("emergency_contacts"):
+            contacts = resp.data[0]["emergency_contacts"]
+            # contacts is expected to be a list of dicts with 'phone' keys
+            return [c["phone"] for c in contacts if "phone" in c]
+    except Exception as e:
+        print(f"Error getting emergency contacts: {e}")
     return []
 
 def send_sms(phone, message):
-    resp = requests.post(
-        TEXTBELT_URL,
-        data={
-            'phone': phone,
-            'message': message,
-            'key': TEXTBELT_API_KEY
-        }
-    )
-    print(f"[DEBUG] SMS sent to {phone}: {resp.text}")
-    return resp.json()
+    """Send SMS using TextBelt API"""
+    try:
+        resp = requests.post(
+            TEXTBELT_URL,
+            data={
+                'phone': phone,
+                'message': message,
+                'key': TEXTBELT_API_KEY
+            },
+            timeout=10
+        )
+        print(f"[DEBUG] SMS sent to {phone}: {resp.text}")
+        return resp.json()
+    except Exception as e:
+        print(f"Error sending SMS to {phone}: {e}")
+        return {"success": False, "error": str(e)}
 
 def trigger_emergency_call(phone_number: str, location: str, natural_disaster: str, timeout_minutes: int = 10) -> tuple[bool, bool, str]:
     """
@@ -80,23 +105,29 @@ def trigger_emergency_call(phone_number: str, location: str, natural_disaster: s
     print(f"📞 Calling: {phone_number}")
     
     try:
-        # Create the call
-        call = client.calls.create(
-            assistant_id=assistant_id,
-            phone_number_id=phone_number_id,
-            customer={
+        # Create the call using REST API
+        call_data = {
+            "assistantId": assistant_id,
+            "phoneNumberId": phone_number_id,
+            "customer": {
                 "number": phone_number
             },
-            assistant_overrides={
-                "variable_values": emergency_variables
+            "assistantOverrides": {
+                "variableValues": emergency_variables
             }
-        )
+        }
         
-        print(f"✅ Call initiated: {call.id}")
+        call_response = make_vapi_request("POST", "/call", call_data)
+        call_id = call_response.get("id")
+        
+        if not call_id:
+            raise Exception("Failed to get call ID from Vapi response")
+        
+        print(f"✅ Call initiated: {call_id}")
         print(f"⏳ Waiting for call completion (timeout: {timeout_minutes} minutes)...")
         
         # Wait for call completion and get transcript
-        transcript = _wait_for_transcript(call.id, timeout_minutes)
+        transcript = _wait_for_transcript(call_id, timeout_minutes)
         
         if not transcript:
             print("❌ No transcript available - returning default values")
@@ -118,13 +149,14 @@ def trigger_emergency_call(phone_number: str, location: str, natural_disaster: s
         print(f"   Send Directions: {send_directions}")
         print(f"   Contact Emergency Contacts: {contact_emergency}")
         print(f"   Shelter Location: {shelter_location or 'Not specified'}")
+        
         if google_maps_pin:
             print(f"   Google Maps Pin: {google_maps_pin}")
             # Send SMS to user with shelter directions
             send_sms(phone_number, f"🚨 Emergency Shelter Directions: {google_maps_pin}")
         
         if contact_emergency:
-            # Dummy: get emergency contacts from Supabase
+            # Get emergency contacts from Supabase
             emergency_contacts = get_emergency_contacts(phone_number)
             for contact in emergency_contacts:
                 send_sms(contact, f"🚨 Emergency: {phone_number} may need help. Location: {location} - {google_maps_pin or ''}")
@@ -152,25 +184,27 @@ def _wait_for_transcript(call_id: str, timeout_minutes: int) -> str:
     
     while time.time() - start_time < timeout_seconds:
         try:
-            call = client.calls.get(call_id)
+            call_response = make_vapi_request("GET", f"/call/{call_id}")
+            status = call_response.get("status")
             
             # Check if call is completed
-            if hasattr(call, 'status') and call.status in ['completed', 'ended', 'finished']:
-                print(f"✅ Call completed with status: {call.status}")
+            if status in ['completed', 'ended', 'finished']:
+                print(f"✅ Call completed with status: {status}")
                 
                 # Check if transcript is available
-                if hasattr(call, 'transcript') and call.transcript:
-                    return call.transcript
+                transcript = call_response.get("transcript")
+                if transcript:
+                    return transcript
                 else:
                     print("⚠️ Call completed but transcript not ready yet, waiting...")
                     time.sleep(5)
                     
-            elif hasattr(call, 'status') and call.status in ['failed', 'error']:
-                print(f"❌ Call failed with status: {call.status}")
+            elif status in ['failed', 'error']:
+                print(f"❌ Call failed with status: {status}")
                 return None
                 
             else:
-                print(f"📞 Call in progress... Status: {getattr(call, 'status', 'unknown')}")
+                print(f"📞 Call in progress... Status: {status or 'unknown'}")
                 time.sleep(15)  # Check every 15 seconds
                 
         except Exception as e:
@@ -181,12 +215,13 @@ def _wait_for_transcript(call_id: str, timeout_minutes: int) -> str:
     
     # One final check for transcript
     try:
-        call = client.calls.get(call_id)
-        if hasattr(call, 'transcript') and call.transcript:
+        call_response = make_vapi_request("GET", f"/call/{call_id}")
+        transcript = call_response.get("transcript")
+        if transcript:
             print("📋 Found transcript on final check!")
-            return call.transcript
-    except:
-        pass
+            return transcript
+    except Exception as e:
+        print(f"Final transcript check failed: {e}")
     
     return None
 
@@ -236,24 +271,15 @@ def example_usage():
     # Trigger the call
     send_directions, contact_emergency, google_maps_pin = trigger_emergency_call(
         phone_number=phone_number,
-        location=location, 
+        location=location,
         natural_disaster=natural_disaster,
-        timeout_minutes=12
+        timeout_minutes=15
     )
     
-    print(f"\n🎯 FINAL RESULTS:")
-    print(f"Send Directions: {send_directions}")
-    print(f"Contact Emergency Contacts: {contact_emergency}")
-    print(f"Google Maps Pin: {google_maps_pin or 'No shelter location found'}")
-    
-    # Show practical usage example
-    if send_directions and google_maps_pin:
-        print(f"\n📱 Example SMS to send:")
-        print(f"🚨 Emergency Shelter Directions")
-        print(f"📍 Location: {google_maps_pin}")
-        print(f"Tap to open in Google Maps")
-    
-    return (send_directions, contact_emergency, google_maps_pin)
+    print(f"\n📊 Final Results:")
+    print(f"   📍 Send Directions: {send_directions}")
+    print(f"   📱 Contact Emergency: {contact_emergency}")
+    print(f"   🗺️ Google Maps Pin: {google_maps_pin or 'None'}")
 
 if __name__ == "__main__":
     example_usage()
