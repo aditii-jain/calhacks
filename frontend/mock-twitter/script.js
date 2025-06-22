@@ -4,13 +4,12 @@ class MockTwitterApp {
         this.posts = [];
         this.currentImageFile = null;
         this.initializeApp();
-        this.loadSamplePosts();
     }
 
     initializeApp() {
         this.bindEventListeners();
         this.setupTextareaAutoResize();
-        this.loadPostsFromStorage();
+        this.loadSamplePosts();
     }
 
     bindEventListeners() {
@@ -39,8 +38,6 @@ class MockTwitterApp {
                 this.submitPost();
             }
         });
-
-
 
         // Modal events
         const imageModal = document.getElementById('image-modal');
@@ -168,44 +165,35 @@ class MockTwitterApp {
         postBtn.disabled = true;
 
         try {
-            // Create post object
+            // Combine text and location
+            let combinedText = text;
+            if (location) {
+                combinedText = text + ' ' + location;
+            }
+            // Create post object with only required fields
             const post = {
-                id: `post_${Date.now()}`,
-                text: text,
                 image: null,
-                location: location,
                 timestamp: new Date().toISOString(),
-                user: {
-                    username: 'Emergency User',
-                    handle: '@emergency_user',
-                    avatar: '👤'
-                }
+                text: combinedText
             };
-
             // Handle image if present
             if (this.currentImageFile) {
                 post.image = await this.convertImageToBase64(this.currentImageFile);
             }
-
-            // Simulate API call delay
-            await this.delay(1500);
-
             // Add post to feed
             this.addPostToFeed(post);
-            this.savePostsToStorage();
-
-            // Save post to JSON file in frontend directory
-            await this.savePostToJSON(post);
-
+            // Save post to JSON file
+            await fetch('http://localhost:8000/save-post', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(post)
+            });
             // Reset form
             this.resetComposer();
-            
             // Show success message
-            this.showToast('Post shared successfully! JSON file generated.', 'success');
-
-            // Simulate sending to backend (for demo)
-            this.sendToBackend(post);
-
+            this.showToast('Post shared successfully!', 'success');
         } catch (error) {
             console.error('Error submitting post:', error);
             this.showToast('Failed to post. Please try again.', 'error');
@@ -261,12 +249,16 @@ class MockTwitterApp {
     createPostElement(post) {
         const postDiv = document.createElement('div');
         postDiv.className = 'post';
+        // Use default avatar and username for all posts
+        const defaultAvatar = '👤';
+        const defaultUsername = 'Emergency User';
+        const defaultHandle = '@emergency_user';
         postDiv.innerHTML = `
             <div class="post-header">
-                <div class="avatar">${post.user.avatar}</div>
+                <div class="avatar">${defaultAvatar}</div>
                 <div class="post-meta">
-                    <span class="post-username">${post.user.username}</span>
-                    <span class="post-handle">${post.user.handle}</span>
+                    <span class="post-username">${defaultUsername}</span>
+                    <span class="post-handle">${defaultHandle}</span>
                     <span class="post-time">• ${this.formatTimestamp(post.timestamp)}</span>
                 </div>
             </div>
@@ -275,11 +267,6 @@ class MockTwitterApp {
                 ${post.image ? `
                     <div class="post-image" onclick="app.openImageModal('${post.image}')">
                         <img src="${post.image}" alt="Post image" loading="lazy">
-                    </div>
-                ` : ''}
-                ${post.location ? `
-                    <div class="post-location">
-                        📍 ${post.location}
                     </div>
                 ` : ''}
             </div>
@@ -347,171 +334,56 @@ class MockTwitterApp {
         }, 3000);
     }
 
-    async sendToBackend(post) {
-        // Simulate sending to backend API
-        try {
-            console.log('Sending post to backend:', post);
-            
-            // This would be your actual API call
-            // const response = await fetch('/api/v1/twitter/process-post', {
-            //     method: 'POST',
-            //     headers: {
-            //         'Content-Type': 'application/json',
-            //     },
-            //     body: JSON.stringify(post)
-            // });
-            
-            // For demo purposes, just log
-            console.log('Post sent to backend successfully');
-            
-        } catch (error) {
-            console.error('Failed to send to backend:', error);
-        }
-    }
-
     loadSamplePosts() {
         const samplePosts = [
             {
-                id: 'sample_1',
                 text: '🚨 URGENT: Major earthquake felt in downtown San Jose! Buildings shaking, people evacuating. Stay safe everyone! #earthquake #SanJose',
                 image: null,
                 location: 'San Jose, CA',
-                timestamp: new Date(Date.now() - 300000).toISOString(), // 5 minutes ago
-                user: {
-                    username: 'SF Emergency',
-                    handle: '@sf_emergency',
-                    avatar: '🚨'
-                }
+                timestamp: new Date(Date.now() - 300000).toISOString(),
             },
             {
-                id: 'sample_2',
                 text: 'Wildfire spotted near Highway 101. Smoke visible from miles away. Authorities are responding. #wildfire #emergency',
                 image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI0ZGNkIzNSIvPjx0ZXh0IHg9IjIwMCIgeT0iMTUwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+V2lsZGZpcmUgSW1hZ2U8L3RleHQ+PC9zdmc+',
                 location: 'Palo Alto, CA',
-                timestamp: new Date(Date.now() - 600000).toISOString(), // 10 minutes ago
-                user: {
-                    username: 'Fire Watch',
-                    handle: '@fire_watch',
-                    avatar: '🔥'
-                }
+                timestamp: new Date(Date.now() - 600000).toISOString(),
             },
             {
-                id: 'sample_3',
                 text: 'Flooding reported on Market Street. Water levels rising rapidly. Avoid the area if possible. Emergency services on scene.',
                 image: null,
                 location: 'San Francisco, CA',
-                timestamp: new Date(Date.now() - 900000).toISOString(), // 15 minutes ago
-                user: {
-                    username: 'Weather Alert',
-                    handle: '@weather_alert',
-                    avatar: '🌊'
-                }
+                timestamp: new Date(Date.now() - 900000).toISOString(),
             }
         ];
-
-        // Add sample posts to feed
-        samplePosts.forEach(post => {
-            this.posts.push(post);
-            this.renderPost(post);
+        // Add sample posts to feed and save to JSON
+        samplePosts.forEach(async (post) => {
+            // Combine text and location
+            let combinedText = post.text;
+            if (post.location) {
+                combinedText = post.text + ' ' + post.location;
+            }
+            // Only keep required fields
+            const minimalPost = {
+                image: post.image,
+                timestamp: post.timestamp,
+                text: combinedText
+            };
+            this.posts.push(minimalPost);
+            this.renderPost(minimalPost);
+            // Save to JSON file
+            try {
+                await fetch('http://localhost:8000/save-post', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(minimalPost)
+                });
+            } catch (error) {
+                console.error('Error saving sample post:', error);
+            }
         });
     }
-
-    savePostsToStorage() {
-        try {
-            localStorage.setItem('mockTwitterPosts', JSON.stringify(this.posts.slice(0, 50))); // Keep last 50 posts
-        } catch (error) {
-            console.error('Failed to save posts to storage:', error);
-        }
-    }
-
-    loadPostsFromStorage() {
-        try {
-            const savedPosts = localStorage.getItem('mockTwitterPosts');
-            if (savedPosts) {
-                const posts = JSON.parse(savedPosts);
-                // Only load user posts (not sample posts)
-                const userPosts = posts.filter(post => post.user.handle === '@emergency_user');
-                userPosts.forEach(post => {
-                    this.posts.unshift(post);
-                    this.renderPost(post, false);
-                });
-            }
-        } catch (error) {
-            console.error('Failed to load posts from storage:', error);
-        }
-    }
-
-    delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    async savePostToJSON(post) {
-        // Create a clean JSON object with the required fields: user, photo, location, text
-        const postData = {
-            post_id: post.id,
-            user: {
-                username: post.user.username,
-                handle: post.user.handle,
-                avatar: post.user.avatar
-            },
-            text: post.text || '',
-            photo: post.image || null,
-            location: post.location || '',
-            metadata: {
-                timestamp: post.timestamp,
-                created_at: new Date(post.timestamp).toLocaleString(),
-                export_timestamp: new Date().toISOString()
-            }
-        };
-
-        // Send to backend to save to JSON file
-        try {
-            const response = await fetch('/api/v1/save-post-json', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(postData)
-            });
-
-            if (response.ok) {
-                console.log('Post saved to JSON file successfully');
-            } else {
-                console.error('Failed to save post to JSON file');
-                // Fallback: save to localStorage for now
-                this.saveToLocalStorage(postData);
-            }
-        } catch (error) {
-            console.error('Error saving post to JSON file:', error);
-            // Fallback: save to localStorage
-            this.saveToLocalStorage(postData);
-        }
-    }
-
-    saveToLocalStorage(postData) {
-        // Fallback method to save posts locally
-        let savedPosts = [];
-        try {
-            const existingData = localStorage.getItem('twitterPostsJSON');
-            if (existingData) {
-                savedPosts = JSON.parse(existingData);
-            }
-        } catch (error) {
-            console.error('Error reading localStorage:', error);
-        }
-
-        savedPosts.push(postData);
-        
-        // Keep only last 100 posts to prevent localStorage from getting too large
-        if (savedPosts.length > 100) {
-            savedPosts = savedPosts.slice(-100);
-        }
-
-        localStorage.setItem('twitterPostsJSON', JSON.stringify(savedPosts, null, 2));
-        console.log('Post saved to localStorage as fallback');
-    }
-
-
 }
 
 // Initialize the app when DOM is loaded
