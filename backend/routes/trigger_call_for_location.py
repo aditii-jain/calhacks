@@ -10,15 +10,15 @@ import os
 # Add voice_agent module to path  
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
 # Import the trigger call function
 try:
     from voice_agent.trigger_call import trigger_emergency_call
 except ImportError as e:
     logger.error(f"Failed to import trigger_emergency_call: {e}")
     trigger_emergency_call = None
-
-# Configure logging
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

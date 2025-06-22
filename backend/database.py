@@ -422,4 +422,12 @@ class DatabaseService:
             }
 
 # Global database service instance
-db_service = DatabaseService() 
+db_service = DatabaseService()
+
+def get_supabase_client():
+    """Get the Supabase client instance from the global database service"""
+    if not db_service.use_supabase:
+        raise RuntimeError("Supabase is not enabled")
+    if not db_service.supabase_client:
+        raise RuntimeError("Supabase client not initialized")
+    return db_service.supabase_client 
