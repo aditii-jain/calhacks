@@ -72,6 +72,27 @@ CREATE TABLE classified_data (
     CONSTRAINT valid_image_id_format CHECK (image_id ~ '^[0-9]+_[0-9]+$')
 );
 
+-- Users table - stores user profiles for crisis alert system
+-- Extends Supabase Auth users with additional profile information
+CREATE TABLE users (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL CHECK (length(name) > 0),
+    phone_number TEXT NOT NULL UNIQUE CHECK (phone_number ~ '^\+?[1-9]\d{8,14}$'),
+    location JSONB NOT NULL CHECK (
+        location ? 'lat' AND 
+        location ? 'lng' AND 
+        location ? 'address' AND
+        (location->>'lat')::NUMERIC BETWEEN -90 AND 90 AND
+        (location->>'lng')::NUMERIC BETWEEN -180 AND 180
+    ),
+    emergency_contacts JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (
+        jsonb_typeof(emergency_contacts) = 'array'
+    ),
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
 -- Indexes for performance
 CREATE INDEX idx_classified_data_tweet_id ON classified_data(tweet_id);
 CREATE INDEX idx_classified_data_image_id ON classified_data(image_id);
@@ -81,6 +102,12 @@ CREATE INDEX idx_classified_data_text_human ON classified_data(text_human);
 CREATE INDEX idx_classified_data_image_human ON classified_data(image_human);
 CREATE INDEX idx_classified_data_image_damage ON classified_data(image_damage);
 CREATE INDEX idx_classified_data_created_at ON classified_data(created_at);
+
+-- User table indexes
+CREATE INDEX idx_users_phone_number ON users(phone_number);
+CREATE INDEX idx_users_location_lat_lng ON users USING GIN ((location->'lat'), (location->'lng'));
+CREATE INDEX idx_users_is_active ON users(is_active);
+CREATE INDEX idx_users_created_at ON users(created_at);
 
 -- Trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -93,6 +120,11 @@ $$ language 'plpgsql';
 
 CREATE TRIGGER update_classified_data_updated_at 
     BEFORE UPDATE ON classified_data 
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_users_updated_at 
+    BEFORE UPDATE ON users 
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
@@ -122,15 +154,34 @@ SELECT * FROM classified_data
 WHERE image_info_conf >= 0.8
 ORDER BY image_info_conf DESC, created_at DESC;
 
+-- User views
+CREATE VIEW active_users AS
+SELECT * FROM users 
+WHERE is_active = true
+ORDER BY created_at DESC;
+
 -- Row Level Security (RLS) policies
 ALTER TABLE classified_data ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
--- Policy to allow all operations for authenticated users
+-- Classified data policies
 CREATE POLICY "Allow all operations for authenticated users" ON classified_data
     FOR ALL USING (auth.role() = 'authenticated');
 
--- Policy to allow all operations for service role
 CREATE POLICY "Allow all operations for service role" ON classified_data
+    FOR ALL USING (auth.role() = 'service_role');
+
+-- User policies
+CREATE POLICY "Users can view their own profile" ON users
+    FOR SELECT USING (auth.uid() = id);
+
+CREATE POLICY "Users can update their own profile" ON users
+    FOR UPDATE USING (auth.uid() = id);
+
+CREATE POLICY "Allow user creation during signup" ON users
+    FOR INSERT WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Service role can access all users" ON users
     FOR ALL USING (auth.role() = 'service_role');
 
 -- Comments for documentation
@@ -147,6 +198,16 @@ COMMENT ON COLUMN classified_data.image_human IS 'Humanitarian classification fo
 COMMENT ON COLUMN classified_data.image_human_conf IS 'Confidence score for image humanitarian classification';
 COMMENT ON COLUMN classified_data.image_damage IS 'Damage severity assessment for tweet image';
 COMMENT ON COLUMN classified_data.image_damage_conf IS 'Confidence score for image damage assessment';
+
+COMMENT ON TABLE users IS 'User profiles for crisis alert system, extends Supabase Auth';
+COMMENT ON COLUMN users.id IS 'References auth.users(id) from Supabase Auth';
+COMMENT ON COLUMN users.name IS 'Full name of the user';
+COMMENT ON COLUMN users.phone_number IS 'Phone number in international format, used for auth and calling';
+COMMENT ON COLUMN users.location IS 'User location as JSONB: {lat, lng, address}';
+COMMENT ON COLUMN users.emergency_contacts IS 'Array of emergency contacts: [{name, phone, relationship}]';
+COMMENT ON COLUMN users.is_active IS 'Whether user should receive crisis alerts';
+
 COMMENT ON VIEW informative_data IS 'Quick access to informative tweets (text or image)';
 COMMENT ON VIEW humanitarian_data IS 'Quick access to tweets with humanitarian classifications';
-COMMENT ON VIEW damage_assessment_data IS 'Quick access to tweets with damage assessments'; 
+COMMENT ON VIEW damage_assessment_data IS 'Quick access to tweets with damage assessments';
+COMMENT ON VIEW active_users IS 'Quick access to active users who can receive alerts'; 

@@ -1,7 +1,8 @@
-from pydantic import BaseModel, HttpUrl, Field
-from typing import Optional, List
+from pydantic import BaseModel, HttpUrl, Field, field_validator
+from typing import Optional, List, Dict, Any
 from enum import Enum
 from datetime import datetime
+import re
 
 # Classification Labels (from CrisisMMD dataset)
 class InformativeLabel(str, Enum):
@@ -24,6 +25,89 @@ class DamageLabel(str, Enum):
     MILD_DAMAGE = "mild_damage"
     LITTLE_OR_NO_DAMAGE = "little_or_no_damage"
     DONT_KNOW_OR_CANT_JUDGE = "dont_know_or_cant_judge"
+
+# === USER MODELS ===
+class Location(BaseModel):
+    """User location information"""
+    lat: float = Field(..., ge=-90, le=90, description="Latitude coordinate")
+    lng: float = Field(..., ge=-180, le=180, description="Longitude coordinate") 
+    address: str = Field(..., min_length=1, description="Human-readable address")
+
+class EmergencyContact(BaseModel):
+    """Emergency contact information"""
+    name: str = Field(..., min_length=1, description="Contact person's name")
+    phone: str = Field(..., description="Contact phone number")
+    relationship: str = Field(..., min_length=1, description="Relationship to user (e.g., 'spouse', 'parent', 'friend')")
+    
+    @field_validator('phone')
+    @classmethod
+    def validate_phone(cls, v):
+        # Basic phone validation - international format
+        phone_pattern = r'^\+?[1-9]\d{8,14}$'
+        if not re.match(phone_pattern, v):
+            raise ValueError('Phone number must be in international format with 9-15 digits (e.g., +1234567890)')
+        return v
+
+class UserInput(BaseModel):
+    """Input model for user registration/update"""
+    name: str = Field(..., min_length=1, max_length=100, description="Full name")
+    phone_number: str = Field(..., description="Phone number in international format")
+    location: Location = Field(..., description="User location")
+    emergency_contacts: List[EmergencyContact] = Field(default=[], max_items=5, description="Emergency contacts (max 5)")
+    
+    @field_validator('phone_number')
+    @classmethod
+    def validate_phone_number(cls, v):
+        # International phone number validation
+        phone_pattern = r'^\+?[1-9]\d{8,14}$'
+        if not re.match(phone_pattern, v):
+            raise ValueError('Phone number must be in international format with 9-15 digits (e.g., +1234567890)')
+        return v
+
+class UserUpdate(BaseModel):
+    """Model for updating user information"""
+    name: Optional[str] = Field(None, min_length=1, max_length=100, description="Full name")
+    location: Optional[Location] = Field(None, description="User location")
+    emergency_contacts: Optional[List[EmergencyContact]] = Field(None, max_items=5, description="Emergency contacts")
+    is_active: Optional[bool] = Field(None, description="Whether user should receive alerts")
+
+class StoredUser(BaseModel):
+    """User data as stored in database"""
+    id: str = Field(..., description="User UUID from Supabase Auth")
+    name: str = Field(..., description="Full name")
+    phone_number: str = Field(..., description="Phone number")
+    location: Location = Field(..., description="User location")
+    emergency_contacts: List[EmergencyContact] = Field(..., description="Emergency contacts")
+    is_active: bool = Field(..., description="Whether user is active")
+    created_at: datetime = Field(..., description="Account creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+
+# === AUTH MODELS ===
+class PhoneAuthRequest(BaseModel):
+    """Request for phone-based authentication"""
+    phone_number: str = Field(..., description="Phone number for authentication")
+    
+    @field_validator('phone_number')
+    @classmethod
+    def validate_phone_number(cls, v):
+        phone_pattern = r'^\+?[1-9]\d{8,14}$'
+        if not re.match(phone_pattern, v):
+            raise ValueError('Phone number must be in international format with 9-15 digits')
+        return v
+
+class OTPVerificationRequest(BaseModel):
+    """Request for OTP verification"""
+    phone_number: str = Field(..., description="Phone number")
+    otp_code: str = Field(..., min_length=4, max_length=8, description="OTP code received via SMS")
+    user_profile: Optional[UserInput] = Field(None, description="User profile for registration")
+
+class AuthResponse(BaseModel):
+    """Response for authentication operations"""
+    success: bool = Field(..., description="Whether operation was successful")
+    message: str = Field(..., description="Response message")
+    access_token: Optional[str] = Field(None, description="JWT access token")
+    refresh_token: Optional[str] = Field(None, description="JWT refresh token")
+    user: Optional[StoredUser] = Field(None, description="User profile data")
 
 # === INPUT MODELS ===
 class ClassifiedDataInput(BaseModel):
@@ -114,11 +198,25 @@ class ClassifiedDataResponse(BaseModel):
     total_count: int = Field(..., description="Total number of records")
     filter_applied: Optional[str] = Field(None, description="Description of applied filters")
 
+class UserResponse(BaseModel):
+    """Response for user operations"""
+    success: bool = True
+    user: Optional[StoredUser] = Field(None, description="User data")
+    message: str = "Operation successful"
+
+class UserListResponse(BaseModel):
+    """Response for user list operations"""
+    success: bool = True
+    users: List[StoredUser] = Field(..., description="List of users")
+    total_count: int = Field(..., description="Total number of users")
+    message: str = "Users retrieved successfully"
+
 class HealthResponse(BaseModel):
     """Health check response"""
     status: str = "healthy"
     database_connected: bool = True
     total_records_stored: int = 0
+    total_users_registered: int = 0
 
 # === FILTER MODELS ===
 class DataFilter(BaseModel):
@@ -132,5 +230,26 @@ class DataFilter(BaseModel):
     min_image_conf: Optional[float] = Field(None, ge=0.0, le=1.0, description="Minimum image confidence threshold")
     has_image: Optional[bool] = Field(None, description="Filter by presence of image")
     has_location: Optional[bool] = Field(None, description="Filter by presence of location")
+
+class UserFilter(BaseModel):
+    """Filter options for querying users"""
+    is_active: Optional[bool] = Field(None, description="Filter by active status")
+    location_radius: Optional[float] = Field(None, gt=0, description="Search radius in kilometers")
+    center_lat: Optional[float] = Field(None, ge=-90, le=90, description="Center latitude for radius search")
+    center_lng: Optional[float] = Field(None, ge=-180, le=180, description="Center longitude for radius search")
+
+# === RED ZONE MODELS ===
+class RedZoneTriggerRequest(BaseModel):
+    """Request to trigger Red Zone emergency calling"""
+    city: str = Field(..., min_length=1, description="City name where emergency occurred")
+    incident_data: Dict[str, Any] = Field(..., description="Incident details for the calling agents")
+    
+class RedZoneTriggerResponse(BaseModel):
+    """Response for Red Zone trigger operation"""
+    success: bool = Field(..., description="Whether the trigger was successful")
+    message: str = Field(..., description="Response message")
+    affected_users_count: int = Field(..., description="Number of users that will be called")
+    city: str = Field(..., description="City where emergency was triggered")
+    agent_response: Optional[Dict[str, Any]] = Field(None, description="Response from calling agent")
 
  

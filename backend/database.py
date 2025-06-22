@@ -339,6 +339,49 @@ class DatabaseService:
             logger.error(f"Failed to get data count from Supabase: {e}")
             return 0
     
+    async def get_users_by_city(self, city_name: str) -> List[dict]:
+        """Get all active users in a specific city for emergency calling"""
+        
+        if self.use_supabase:
+            return await self._get_users_by_city_supabase(city_name)
+        else:
+            return await self._get_users_by_city_mock(city_name)
+    
+    async def _get_users_by_city_mock(self, city_name: str) -> List[dict]:
+        """Get users by city from mock database"""
+        # For mock implementation, return empty list since we don't have users yet
+        logger.info(f"Mock: Would get users for city '{city_name}'")
+        return []
+    
+    async def _get_users_by_city_supabase(self, city_name: str) -> List[dict]:
+        """Get users by city from Supabase"""
+        if not self.supabase_client:
+            raise RuntimeError("Supabase client not initialized")
+        
+        try:
+            # Query users where location.address contains the city name and user is active
+            response = self.supabase_client.table("users").select(
+                "id, name, phone_number, location, emergency_contacts"
+            ).eq("is_active", True).ilike("location->>address", f"%{city_name}%").execute()
+            
+            users = []
+            for record in response.data:
+                user_data = {
+                    "id": record["id"],
+                    "name": record["name"],
+                    "phone_number": record["phone_number"],
+                    "location": record["location"],
+                    "emergency_contacts": record["emergency_contacts"]
+                }
+                users.append(user_data)
+            
+            logger.info(f"Found {len(users)} active users in city '{city_name}'")
+            return users
+            
+        except Exception as e:
+            logger.error(f"Failed to get users by city from Supabase: {e}")
+            raise
+    
     async def health_check(self) -> dict:
         """Perform health check on database service"""
         

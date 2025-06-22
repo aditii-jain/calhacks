@@ -18,13 +18,14 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 Crisis-MMD Backend starting up...")
     logger.info("📊 Initializing classified data storage and retrieval system...")
+    logger.info("👥 Initializing user authentication and management system...")
     
     # TODO: Initialize ML models here in future phases
     # models["text_classifier"] = load_text_model()
     # models["image_classifier"] = load_image_model() 
     # models["multimodal_fusion"] = load_fusion_model()
     
-    logger.info("✅ Startup complete - classified data system ready")
+    logger.info("✅ Startup complete - Crisis-MMD system ready")
     
     yield
     
@@ -36,7 +37,7 @@ async def lifespan(app: FastAPI):
 # Create FastAPI app with lifespan events
 app = FastAPI(
     title="Crisis-MMD API",
-    description="Multimodal Disaster Analysis - Store and retrieve classified tweet data with text, image, and humanitarian classifications",
+    description="Multimodal Disaster Analysis - Store and retrieve classified tweet data with user authentication for crisis alert system",
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -81,10 +82,10 @@ async def general_exception_handler(request, exc):
 async def root():
     """Root endpoint - API status"""
     return {
-        "message": "Crisis-MMD Classified Data API is running",
+        "message": "Crisis-MMD API is running",
         "status": "healthy",
         "version": "2.0.0",
-        "description": "Store and retrieve classified tweet data with comprehensive filtering capabilities"
+        "description": "Multimodal Disaster Analysis with user authentication and crisis alert system"
     }
 
 @app.get("/health")
@@ -98,16 +99,32 @@ async def health_check():
             "/health",
             "/docs",
             "/redoc",
+            # Data processing endpoints
             "/api/v1/classified-data/store",
             "/api/v1/classified-data/all",
             "/api/v1/classified-data/filter",
-            "/api/v1/health"
+            "/api/v1/health",
+            # User authentication endpoints
+            "/api/v1/users/auth/send-otp",
+            "/api/v1/users/auth/verify-otp",
+            "/api/v1/users/profile",
+            "/api/v1/users/",
+            "/api/v1/users/location-radius",
+            # Red Zone emergency endpoints
+            "/api/v1/red-zone/trigger",
+            # Twitter JSON file endpoints
+            "/api/v1/save-post-json",
+            "/api/v1/posts-json",
+            "/api/v1/clear-posts-json"
         ]
     }
 
 # Include routers
-from routes import process
+from routes import process, users, red_zone, twitter_json
 app.include_router(process.router, prefix="/api/v1", tags=["processing"])
+app.include_router(users.router, prefix="/api/v1", tags=["users"])
+app.include_router(red_zone.router, prefix="/api/v1", tags=["red-zone"])
+app.include_router(twitter_json.router, prefix="/api/v1", tags=["twitter-json"])
 
 if __name__ == "__main__":
     uvicorn.run(

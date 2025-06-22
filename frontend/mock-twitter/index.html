@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MockTwitter - Crisis Alert System</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">🚨</span>
+                    <span class="logo-text">MockTwitter</span>
+                    <span class="logo-subtitle">Crisis Alert System</span>
+                </div>
+                <div class="header-actions">
+                    <div class="notification-icon">🔔</div>
+                    <div class="user-profile">
+                        <div class="avatar">👤</div>
+                        <span class="username">@emergency_user</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <div class="container">
+            <div class="content-wrapper">
+                
+                <!-- Post Composer -->
+                <section class="composer-section">
+                    <div class="composer">
+                        <div class="composer-header">
+                            <div class="avatar">👤</div>
+                            <div class="composer-content">
+                                <textarea 
+                                    id="post-text" 
+                                    class="post-input" 
+                                    placeholder="What's happening? Report emergencies, disasters, or safety concerns..."
+                                    maxlength="280"
+                                ></textarea>
+                                
+                                <!-- Image Preview -->
+                                <div id="image-preview" class="image-preview hidden">
+                                    <img id="preview-img" src="" alt="Preview">
+                                    <button id="remove-image" class="remove-image" type="button">✕</button>
+                                </div>
+                                
+                                <!-- Composer Actions -->
+                                <div class="composer-actions">
+                                    <div class="action-buttons">
+                                        <label for="image-upload" class="action-btn photo-btn">
+                                            📷 Photo
+                                            <input type="file" id="image-upload" accept="image/*" hidden>
+                                        </label>
+                                        
+                                        <select id="location-select" class="action-btn location-select">
+                                            <option value="">📍 Add location</option>
+                                            <option value="San Jose, CA">San Jose, CA</option>
+                                            <option value="San Francisco, CA">San Francisco, CA</option>
+                                            <option value="Palo Alto, CA">Palo Alto, CA</option>
+                                            <option value="Oakland, CA">Oakland, CA</option>
+                                            <option value="Berkeley, CA">Berkeley, CA</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="post-controls">
+                                        <div id="char-counter" class="char-counter">280</div>
+                                        <button id="post-btn" class="post-btn" disabled>Post</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Feed Section -->
+                <section class="feed-section">
+                    <div class="feed-header">
+                        <h2>Live Crisis Feed</h2>
+                        <div class="feed-status">
+                            <span class="status-dot"></span>
+                            <span>Live</span>
+                        </div>
+                    </div>
+                    
+                    <div id="posts-feed" class="posts-feed">
+                        <!-- Sample posts will be loaded here -->
+                    </div>
+                </section>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="loading-spinner"></div>
+        <p>Posting...</p>
+    </div>
+
+    <!-- Image Modal -->
+    <div id="image-modal" class="image-modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <button class="modal-close">✕</button>
+            <img id="modal-image" src="" alt="Full size image">
+        </div>
+    </div>
+
+    <!-- Success Toast -->
+    <div id="success-toast" class="toast success-toast hidden">
+        <span class="toast-icon">✅</span>
+        <span class="toast-message">Post shared successfully!</span>
+    </div>
+
+    <!-- Error Toast -->
+    <div id="error-toast" class="toast error-toast hidden">
+        <span class="toast-icon">❌</span>
+        <span class="toast-message">Failed to post. Please try again.</span>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
