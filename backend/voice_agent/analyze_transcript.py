@@ -5,6 +5,7 @@ def analyze_transcript(transcript):
     Analyze a conversation transcript to determine user's decisions about:
     1. Emergency contact notifications
     2. Shelter directions
+    3. Shelter location mentioned
     """
     
     # Convert transcript to lowercase for easier analysis
@@ -16,6 +17,7 @@ def analyze_transcript(transcript):
         "wants_shelter_directions": None,  # True/False/None
         "emergency_contacts_confidence": 0,
         "shelter_directions_confidence": 0,
+        "shelter_location": None,  # Extracted shelter name/location
         "key_phrases": []
     }
     
@@ -41,6 +43,16 @@ def analyze_transcript(transcript):
     shelter_directions_no = [
         "no.*direction", "don't.*need.*direction", "know.*way", "have.*directions",
         "no.*location", "don't.*send", "not.*need.*direction"
+    ]
+    
+    # Extract shelter location patterns
+    shelter_patterns = [
+        r"shelter (?:is )?at ([^.]+)",
+        r"nearest shelter (?:is )?(?:at )?([^.]+)",
+        r"go to ([^.]+(?:center|school|park|hall|building|facility))",
+        r"([^.]+(?:recreation center|community center|civic center|park|school|hall))",
+        r"located at ([^.]+)",
+        r"address (?:is )?([^.]+)"
     ]
     
     # Analyze emergency contact intent
@@ -69,7 +81,41 @@ def analyze_transcript(transcript):
         analysis["shelter_directions_confidence"] = min(shelter_no_matches * 25, 100)
         analysis["key_phrases"].append("User declined shelter directions")
     
+    # Extract shelter location
+    for pattern in shelter_patterns:
+        match = re.search(pattern, transcript_lower)
+        if match:
+            shelter_location = match.group(1).strip()
+            # Clean up common artifacts
+            shelter_location = re.sub(r'\s+', ' ', shelter_location)  # Multiple spaces
+            shelter_location = shelter_location.replace(',', ', ')  # Fix comma spacing
+            analysis["shelter_location"] = shelter_location.title()  # Capitalize properly
+            analysis["key_phrases"].append(f"Shelter mentioned: {analysis['shelter_location']}")
+            break
+    
     return analysis
+
+def get_google_maps_pin(shelter_location):
+    """
+    Generate a Google Maps pin URL for the shelter location.
+    
+    Args:
+        shelter_location (str): The shelter name/location
+        
+    Returns:
+        str: Google Maps URL with pin, or None if no location
+    """
+    if not shelter_location:
+        return None
+    
+    # Encode the location for URL
+    import urllib.parse
+    encoded_location = urllib.parse.quote_plus(shelter_location)
+    
+    # Generate Google Maps URL with pin
+    maps_url = f"https://maps.google.com/maps?q={encoded_location}&t=m&z=15"
+    
+    return maps_url
 
 def print_analysis(transcript):
     """Analyze transcript and print formatted results."""
@@ -88,6 +134,14 @@ def print_analysis(transcript):
     print(f"Emergency Contacts: {emergency_status} (confidence: {analysis['emergency_contacts_confidence']}%)")
     print(f"Shelter Directions: {shelter_status} (confidence: {analysis['shelter_directions_confidence']}%)")
     
+    # Show shelter location if found
+    if analysis['shelter_location']:
+        maps_url = get_google_maps_pin(analysis['shelter_location'])
+        print(f"📍 Shelter Location: {analysis['shelter_location']}")
+        print(f"🗺️  Google Maps: {maps_url}")
+    else:
+        print(f"📍 Shelter Location: Not specified")
+    
     if analysis['key_phrases']:
         print(f"\n🔍 KEY FINDINGS:")
         for phrase in analysis['key_phrases']:
@@ -98,6 +152,8 @@ def print_analysis(transcript):
         print("• 🚨 Notify emergency contacts")
     if analysis['wants_shelter_directions'] == True:
         print("• 📍 Send shelter directions")
+        if analysis['shelter_location']:
+            print(f"  → Location: {analysis['shelter_location']}")
     if analysis['wants_emergency_contacts'] == False and analysis['wants_shelter_directions'] == False:
         print("• ✅ No actions needed - user declined assistance")
     if analysis['wants_emergency_contacts'] is None and analysis['wants_shelter_directions'] is None:
