@@ -39,22 +39,53 @@ def make_vapi_request(method, endpoint, data=None):
 def get_emergency_contacts(phone_number):
     """Get emergency contacts for a user from Supabase"""
     try:
+        print(f"📱 Looking up emergency contacts for {phone_number}")
         from supabase import create_client, Client
         url = os.environ.get("SUPABASE_URL")
         key = os.environ.get("SUPABASE_ANON_KEY")
         supabase: Client = create_client(url, key)
+        
         resp = supabase.table("users").select("emergency_contacts").eq("phone_number", phone_number).execute()
-        if resp.data and resp.data[0].get("emergency_contacts"):
-            contacts = resp.data[0]["emergency_contacts"]
-            # contacts is expected to be a list of dicts with 'phone' keys
-            return [c["phone"] for c in contacts if "phone" in c]
+        print(f"📱 Supabase response: {resp.data}")
+        
+        if resp.data and len(resp.data) > 0:
+            user_data = resp.data[0]
+            emergency_contacts = user_data.get("emergency_contacts")
+            print(f"📱 Raw emergency_contacts data: {emergency_contacts}")
+            
+            if emergency_contacts:
+                if isinstance(emergency_contacts, list):
+                    # Handle list of dicts with 'phone' keys
+                    phone_numbers = []
+                    for contact in emergency_contacts:
+                        if isinstance(contact, dict) and "phone" in contact:
+                            phone_numbers.append(contact["phone"])
+                        elif isinstance(contact, str):
+                            # Handle direct phone number strings
+                            phone_numbers.append(contact)
+                    print(f"📱 Extracted phone numbers: {phone_numbers}")
+                    return phone_numbers
+                else:
+                    print(f"📱 emergency_contacts is not a list: {type(emergency_contacts)}")
+            else:
+                print(f"📱 No emergency_contacts field found or it's empty")
+        else:
+            print(f"📱 No user found with phone number {phone_number}")
+            
     except Exception as e:
-        print(f"Error getting emergency contacts: {e}")
+        print(f"📱 Error getting emergency contacts: {e}")
+        import traceback
+        traceback.print_exc()
+    
     return []
 
 def send_sms(phone, message):
     """Send SMS using TextBelt API"""
     try:
+        print(f"📱 Attempting to send SMS to {phone}")
+        print(f"📱 Message: {message}")
+        print(f"📱 Using TextBelt API key: {TEXTBELT_API_KEY[:10]}...")
+        
         resp = requests.post(
             TEXTBELT_URL,
             data={
@@ -64,10 +95,23 @@ def send_sms(phone, message):
             },
             timeout=10
         )
-        print(f"[DEBUG] SMS sent to {phone}: {resp.text}")
-        return resp.json()
+        
+        print(f"📱 TextBelt response status: {resp.status_code}")
+        print(f"📱 TextBelt response: {resp.text}")
+        
+        result = resp.json()
+        
+        if result.get("success"):
+            print(f"✅ SMS sent successfully to {phone}")
+        else:
+            print(f"❌ SMS failed to {phone}: {result}")
+            
+        return result
+        
     except Exception as e:
-        print(f"Error sending SMS to {phone}: {e}")
+        print(f"❌ Error sending SMS to {phone}: {e}")
+        import traceback
+        traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 def trigger_emergency_call(phone_number: str, location: str, natural_disaster: str, timeout_minutes: int = 10) -> tuple[bool, bool, str]:
@@ -156,10 +200,20 @@ def trigger_emergency_call(phone_number: str, location: str, natural_disaster: s
             send_sms(phone_number, f"🚨 Emergency Shelter Directions: {google_maps_pin}")
         
         if contact_emergency:
+            print(f"📱 User wants emergency contacts notified - fetching contacts...")
             # Get emergency contacts from Supabase
             emergency_contacts = get_emergency_contacts(phone_number)
-            for contact in emergency_contacts:
-                send_sms(contact, f"🚨 Emergency: {phone_number} may need help. Location: {location} - {google_maps_pin or ''}")
+            print(f"📱 Found {len(emergency_contacts)} emergency contacts: {emergency_contacts}")
+            
+            if emergency_contacts:
+                for contact in emergency_contacts:
+                    print(f"📱 Sending SMS to emergency contact: {contact}")
+                    sms_result = send_sms(contact, f"🚨 Emergency Alert: {phone_number} may need help due to {natural_disaster} in {location}. Shelter info: {google_maps_pin or 'Not available'}")
+                    print(f"📱 SMS result for {contact}: {sms_result}")
+            else:
+                print(f"📱 No emergency contacts found for {phone_number}")
+        else:
+            print(f"📱 User does not want emergency contacts notified")
         
         return (send_directions, contact_emergency, google_maps_pin)
         
