@@ -90,10 +90,23 @@ def trigger_call_for_location(location: str, disaster_type: str, timeout_minutes
                             natural_disaster=disaster_type,
                             timeout_minutes=timeout_minutes
                         )
-                        logger.info(f"Emergency call triggered successfully for {phone_number}")
+                        
+                        # Check if the call was successful
+                        if result.get("status") == "success" and not result.get("error"):
+                            logger.info(f"Emergency call triggered successfully for {phone_number}")
+                        else:
+                            logger.error(f"Emergency call failed for {phone_number}: {result.get('error', 'Unknown error')}")
+                            
                     except Exception as e:
                         logger.error(f"Failed to trigger emergency call for {phone_number}: {e}")
-                        result = {"error": str(e)}
+                        result = {
+                            "status": "error",
+                            "call_id": None,
+                            "send_directions": False,
+                            "contact_emergency_contacts": False,
+                            "google_maps_pin": None,
+                            "error": str(e)
+                        }
                 
                 called_users.append({
                     "phone_number": phone_number,

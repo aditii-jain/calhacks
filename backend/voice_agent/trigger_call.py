@@ -25,15 +25,27 @@ def make_vapi_request(method, endpoint, data=None):
     
     url = f"{VAPI_BASE_URL}{endpoint}"
     
-    if method.upper() == "POST":
-        response = requests.post(url, headers=headers, json=data, timeout=30)
-    elif method.upper() == "GET":
-        response = requests.get(url, headers=headers, timeout=30)
-    else:
-        raise ValueError(f"Unsupported HTTP method: {method}")
-    
-    response.raise_for_status()
-    return response.json()
+    try:
+        if method.upper() == "POST":
+            response = requests.post(url, headers=headers, json=data, timeout=30)
+        elif method.upper() == "GET":
+            response = requests.get(url, headers=headers, timeout=30)
+        else:
+            raise ValueError(f"Unsupported HTTP method: {method}")
+        
+        # Log response details for debugging
+        print(f"📡 Vapi API Response: {response.status_code}")
+        if response.status_code >= 400:
+            print(f"📡 Error Response Body: {response.text}")
+        
+        response.raise_for_status()
+        return response.json()
+        
+    except requests.exceptions.HTTPError as e:
+        error_details = f"HTTP {response.status_code}: {response.text if response else 'No response body'}"
+        raise Exception(f"Vapi API error - {error_details}") from e
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Request failed: {str(e)}") from e
 
 # Dummy function to get emergency contacts from Supabase
 def get_emergency_contacts(phone_number):
@@ -114,7 +126,7 @@ def send_sms(phone, message):
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
-def trigger_emergency_call(phone_number: str, location: str, natural_disaster: str, timeout_minutes: int = 10) -> tuple[bool, bool, str]:
+def trigger_emergency_call(phone_number: str, location: str, natural_disaster: str, timeout_minutes: int = 10) -> dict:
     """
     Trigger an emergency call and return user preferences and shelter location.
     
@@ -125,10 +137,15 @@ def trigger_emergency_call(phone_number: str, location: str, natural_disaster: s
         timeout_minutes (int): How long to wait for call completion (default: 10 minutes)
     
     Returns:
-        tuple[bool, bool, str]: (send_directions, contact_emergency_contacts, google_maps_pin)
-        - send_directions: True if user wants shelter directions
-        - contact_emergency_contacts: True if user wants emergency contacts notified
-        - google_maps_pin: Google Maps URL for shelter location, or None if not found
+        dict: Call result with status, preferences, and shelter information
+        {
+            "status": "success" | "error",
+            "call_id": str | None,
+            "send_directions": bool,
+            "contact_emergency_contacts": bool,
+            "google_maps_pin": str | None,
+            "error": str | None
+        }
     """
     
     # Configuration
@@ -161,6 +178,7 @@ def trigger_emergency_call(phone_number: str, location: str, natural_disaster: s
             }
         }
         
+        print(f"📞 Making Vapi call with data: {json.dumps(call_data, indent=2)}")
         call_response = make_vapi_request("POST", "/call", call_data)
         call_id = call_response.get("id")
         
@@ -175,7 +193,14 @@ def trigger_emergency_call(phone_number: str, location: str, natural_disaster: s
         
         if not transcript:
             print("❌ No transcript available - returning default values")
-            return (False, False, None)
+            return {
+                "status": "success",
+                "call_id": call_id,
+                "send_directions": False,
+                "contact_emergency_contacts": False,
+                "google_maps_pin": None,
+                "error": "No transcript available"
+            }
         
         # Analyze transcript
         print("📋 Analyzing transcript...")
@@ -215,11 +240,25 @@ def trigger_emergency_call(phone_number: str, location: str, natural_disaster: s
         else:
             print(f"📱 User does not want emergency contacts notified")
         
-        return (send_directions, contact_emergency, google_maps_pin)
+        return {
+            "status": "success",
+            "call_id": call_id,
+            "send_directions": send_directions,
+            "contact_emergency_contacts": contact_emergency,
+            "google_maps_pin": google_maps_pin,
+            "error": None
+        }
         
     except Exception as error:
         print(f"❌ Error during emergency call: {error}")
-        return (False, False, None)
+        return {
+            "status": "error",
+            "call_id": None,
+            "send_directions": False,
+            "contact_emergency_contacts": False,
+            "google_maps_pin": None,
+            "error": str(error)
+        }
 
 def _wait_for_transcript(call_id: str, timeout_minutes: int) -> str:
     """
@@ -323,7 +362,7 @@ def example_usage():
         return
     
     # Trigger the call
-    send_directions, contact_emergency, google_maps_pin = trigger_emergency_call(
+    result = trigger_emergency_call(
         phone_number=phone_number,
         location=location,
         natural_disaster=natural_disaster,
@@ -331,9 +370,13 @@ def example_usage():
     )
     
     print(f"\n📊 Final Results:")
-    print(f"   📍 Send Directions: {send_directions}")
-    print(f"   📱 Contact Emergency: {contact_emergency}")
-    print(f"   🗺️ Google Maps Pin: {google_maps_pin or 'None'}")
+    print(f"   🟢 Status: {result.get('status')}")
+    print(f"   📞 Call ID: {result.get('call_id', 'None')}")
+    print(f"   📍 Send Directions: {result.get('send_directions')}")
+    print(f"   📱 Contact Emergency: {result.get('contact_emergency_contacts')}")
+    print(f"   🗺️ Google Maps Pin: {result.get('google_maps_pin') or 'None'}")
+    if result.get('error'):
+        print(f"   ❌ Error: {result.get('error')}")
 
 if __name__ == "__main__":
     example_usage()
