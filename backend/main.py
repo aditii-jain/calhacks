@@ -153,17 +153,32 @@ async def health_check():
             "/api/v1/crisis-map/health",
             # Orchestrate endpoints
             "/api/v1/orchestrate",
-            "/api/v1/orchestrate/health"
+            "/api/v1/orchestrate/health",
+            # Classification endpoints
+            "/api/v1/classify-crisis",
+            "/api/v1/classify-crisis/health",
+            "/api/v1/push-classification-db", 
+            "/api/v1/push-classification-db/health",
+            # Aggregation endpoints
+            "/api/v1/get-aggregate",
+            "/api/v1/get-aggregate/health",
+            # Emergency endpoints
+            "/api/v1/trigger-call-for-location",
+            "/api/v1/trigger-call-for-location/health"
         ]
     }
 
 # Include routers
-from routes import process, users, red_zone, crisis_map, orchestrate
+from routes import process, users, red_zone, crisis_map, orchestrate, classify_crisis, push_classification_db, get_aggregate, trigger_call_for_location
 app.include_router(process.router, prefix="/api/v1", tags=["processing"])
 app.include_router(users.router, prefix="/api/v1", tags=["users"])
 app.include_router(red_zone.router, prefix="/api/v1", tags=["red-zone"])
 app.include_router(crisis_map.router, prefix="/api/v1", tags=["crisis-map"])
 app.include_router(orchestrate.router, prefix="/api/v1", tags=["orchestrate"])
+app.include_router(classify_crisis.router, prefix="/api/v1", tags=["classification"])
+app.include_router(push_classification_db.router, prefix="/api/v1", tags=["classification"])
+app.include_router(get_aggregate.router, prefix="/api/v1", tags=["aggregation"])
+app.include_router(trigger_call_for_location.router, prefix="/api/v1", tags=["emergency"])
 
 if __name__ == "__main__":
     import os

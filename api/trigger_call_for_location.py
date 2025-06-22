@@ -71,9 +71,9 @@ class handler(BaseHTTPRequestHandler):
                 return
             # Call the real logic via internal function for local, or via API for production
             if os.environ.get("VERCEL"):
-                print("[DEBUG] Running in Vercel environment, making HTTP POST to self")
+                print("[DEBUG] Running in Vercel environment, making HTTP POST to Railway")
                 resp = requests.post(
-                    "https://calhack4.vercel.app/api/trigger_call_for_location",
+                    "https://calhacks-deploy-production.up.railway.app/api/v1/trigger-call-for-location",
                     json={"location": location, "disaster_type": disaster_type},
                     timeout=30
                 )

@@ -117,7 +117,7 @@ const getUSCoordinates = async (location: string): Promise<{ x: number; y: numbe
   // Use our backend geocoding service as fallback
   try {
     const response = await fetch(
-      `http://localhost:8000/api/v1/crisis-map/geocode/${encodeURIComponent(location)}`
+      `https://calhacks-deploy-production.up.railway.app/api/v1/crisis-map/geocode/${encodeURIComponent(location)}`
     )
     
     if (response.ok) {
@@ -147,7 +147,7 @@ export default function CrisisMap() {
   const fetchCrisisData = async () => {
     try {
       setLoading(true)
-      const response = await fetch('http://localhost:8000/api/v1/crisis-map/data?limit=50')
+      const response = await fetch('https://calhacks-deploy-production.up.railway.app/api/v1/crisis-map/data?limit=50')
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)

@@ -12,10 +12,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # API URLs (you can move these to config later)
-CLASSIFY_API_URL = "https://calhack4.vercel.app/api/classify_crisis"
-PUSH_DB_API_URL = "https://calhack4.vercel.app/api/push_classification_db"
-GET_AGGREGATE_API_URL = "https://calhack4.vercel.app/api/get_aggregate"
-TRIGGER_CALL_API_URL = "https://calhack4.vercel.app/api/trigger_call_for_location"
+RAILWAY_BASE_URL = "https://calhacks-deploy-production.up.railway.app"
+CLASSIFY_API_URL = f"{RAILWAY_BASE_URL}/api/v1/classify-crisis"
+PUSH_DB_API_URL = f"{RAILWAY_BASE_URL}/api/v1/push-classification-db"
+GET_AGGREGATE_API_URL = f"{RAILWAY_BASE_URL}/api/v1/get-aggregate"
+TRIGGER_CALL_API_URL = f"{RAILWAY_BASE_URL}/api/v1/trigger-call-for-location"
 
 def trigger_crisis_alert(aggregate_data: Dict[str, Any]) -> bool:
     """

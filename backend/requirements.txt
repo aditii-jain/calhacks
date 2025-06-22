@@ -4,4 +4,6 @@ python-dotenv
 vapi_server_sdk
 supabase
 pydantic-settings
-requests 
+requests
+google-generativeai==0.8.3
+Pillow 

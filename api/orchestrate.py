@@ -3,8 +3,9 @@ import json
 import requests
 from http.server import BaseHTTPRequestHandler
 
-CLASSIFY_API_URL = "https://calhack4.vercel.app/api/classify_crisis"
-PUSH_DB_API_URL = "https://calhack4.vercel.app/api/push_classification_db"
+RAILWAY_BASE_URL = "https://calhacks-deploy-production.up.railway.app"
+CLASSIFY_API_URL = f"{RAILWAY_BASE_URL}/api/v1/classify-crisis"
+PUSH_DB_API_URL = f"{RAILWAY_BASE_URL}/api/v1/push-classification-db"
 
 class handler(BaseHTTPRequestHandler):
     def trigger_crisis_alert(self, aggregate_data):
@@ -18,7 +19,7 @@ class handler(BaseHTTPRequestHandler):
             return False
         try:
             resp = requests.post(
-                "https://calhack4.vercel.app/api/trigger_call_for_location",
+                f"{RAILWAY_BASE_URL}/api/v1/trigger-call-for-location",
                 json={"location": location, "disaster_type": disaster_type},
                 timeout=30
             )
@@ -64,7 +65,7 @@ class handler(BaseHTTPRequestHandler):
                 inserted = db_result.get("inserted", False)
 
             if inserted:
-                agg_resp = requests.post("https://calhack4.vercel.app/api/get_aggregate", json=classification, timeout=30)
+                agg_resp = requests.post(f"{RAILWAY_BASE_URL}/api/v1/get-aggregate", json=classification, timeout=30)
                 agg_result = agg_resp.json() if agg_resp.status_code == 200 else {"error": agg_resp.text}
                 # New step: check tweet_count and aggregate_score, trigger alert if needed
                 alert_triggered = False
