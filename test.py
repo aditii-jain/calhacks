@@ -15,13 +15,13 @@ data_url = f"data:image/jpeg;base64,{b64}"
 # Prepare payload
 payload = {
     "image_data": data_url,
-    "tweet_text": "Wildfires raging through San Francisco are crazy!!!!! There are so many people affected by this disaster!!! #CaliforniaFires",
+    "tweet_text": "Wildfires raging through San Francisco are crazy yo! There are so many people affected by this disaster!!! #CaliforniaFires",
     "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 }
 
 # Send POST request
 resp = requests.post(
-    "https://calhack4.vercel.app/api/orchestrate",
+    "https://calhacks-deploy-production.up.railway.app/api/v1/orchestrate",
     json=payload,
     timeout=60
 )
