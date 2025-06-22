@@ -17,13 +17,14 @@ async def lifespan(app: FastAPI):
     """Handle startup and shutdown events"""
     # Startup
     logger.info("🚀 Crisis-MMD Backend starting up...")
+    logger.info("📊 Initializing classified data storage and retrieval system...")
     
-    # TODO: Initialize models here in future phases
+    # TODO: Initialize ML models here in future phases
     # models["text_classifier"] = load_text_model()
     # models["image_classifier"] = load_image_model() 
     # models["multimodal_fusion"] = load_fusion_model()
     
-    logger.info("✅ Startup complete - models loaded")
+    logger.info("✅ Startup complete - classified data system ready")
     
     yield
     
@@ -35,8 +36,8 @@ async def lifespan(app: FastAPI):
 # Create FastAPI app with lifespan events
 app = FastAPI(
     title="Crisis-MMD API",
-    description="Multimodal Disaster Analysis - AI-powered crisis classification using text and images",
-    version="1.0.0",
+    description="Multimodal Disaster Analysis - Store and retrieve classified tweet data with text, image, and humanitarian classifications",
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan
@@ -80,9 +81,10 @@ async def general_exception_handler(request, exc):
 async def root():
     """Root endpoint - API status"""
     return {
-        "message": "Crisis-MMD API is running",
+        "message": "Crisis-MMD Classified Data API is running",
         "status": "healthy",
-        "version": "1.0.0"
+        "version": "2.0.0",
+        "description": "Store and retrieve classified tweet data with comprehensive filtering capabilities"
     }
 
 @app.get("/health")
@@ -95,16 +97,17 @@ async def health_check():
             "/",
             "/health",
             "/docs",
-            "/redoc"
+            "/redoc",
+            "/api/v1/classified-data/store",
+            "/api/v1/classified-data/all",
+            "/api/v1/classified-data/filter",
+            "/api/v1/health"
         ]
     }
 
-# TODO: Include routers as we build them
-# from routes import predict, demo, agents, voice
-# app.include_router(predict.router, prefix="/api/v1", tags=["classification"])
-# app.include_router(demo.router, prefix="/api/v1", tags=["demo"])
-# app.include_router(agents.router, prefix="/api/v1", tags=["agents"])
-# app.include_router(voice.router, prefix="/api/v1", tags=["voice"])
+# Include routers
+from routes import process
+app.include_router(process.router, prefix="/api/v1", tags=["processing"])
 
 if __name__ == "__main__":
     uvicorn.run(
