@@ -70,8 +70,14 @@ def trigger_call_for_location(location: str, disaster_type: str, timeout_minutes
                 
                 # Check if trigger_emergency_call is available
                 if trigger_emergency_call is None:
-                    logger.error("trigger_emergency_call function not available")
-                    result = {"error": "Emergency call function not available"}
+                    logger.warning("Voice agent not available - simulating emergency call")
+                    result = {
+                        "status": "simulated", 
+                        "message": "Voice agent not available in this environment",
+                        "phone_number": phone_number,
+                        "location": address,
+                        "disaster_type": disaster_type
+                    }
                 else:
                     try:
                         # Call the emergency trigger function

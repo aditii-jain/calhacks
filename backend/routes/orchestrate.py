@@ -63,35 +63,25 @@ async def orchestrate_crisis_workflow(request_data: Dict[str, Any]):
     try:
         logger.info("Starting crisis orchestration workflow")
         
-        # Step 1: Forward to classifier API
+        # Step 1: Call classifier directly
         logger.info("Step 1: Classifying crisis data")
         try:
-            classify_resp = requests.post(CLASSIFY_API_URL, json=request_data, timeout=60)
-            if classify_resp.status_code != 200:
-                raise HTTPException(
-                    status_code=classify_resp.status_code,
-                    detail=f"Classification API failed: {classify_resp.text}"
-                )
-            classification = classify_resp.json()
+            from routes.classify_crisis import classify_crisis
+            classification = await classify_crisis(request_data)
             logger.info(f"Classification successful: {classification}")
-        except requests.RequestException as e:
-            logger.error(f"Classification API request failed: {e}")
-            raise HTTPException(status_code=500, detail=f"Classification API request failed: {str(e)}")
+        except Exception as e:
+            logger.error(f"Classification failed: {e}")
+            raise HTTPException(status_code=500, detail=f"Classification failed: {str(e)}")
 
-        # Step 2: Forward to push_classification_db API
+        # Step 2: Call push_classification_db directly
         logger.info("Step 2: Pushing classification to database")
         try:
-            db_resp = requests.post(PUSH_DB_API_URL, json=classification, timeout=30)
-            if db_resp.status_code != 200:
-                inserted = False
-                db_result = {"error": db_resp.text}
-                logger.warning(f"Database push failed: {db_resp.text}")
-            else:
-                db_result = db_resp.json()
-                inserted = db_result.get("inserted", False)
-                logger.info(f"Database push result: {db_result}")
-        except requests.RequestException as e:
-            logger.error(f"Database API request failed: {e}")
+            from routes.push_classification_db import push_classification_db
+            db_result = await push_classification_db(classification)
+            inserted = db_result.get("inserted", False)
+            logger.info(f"Database push result: {db_result}")
+        except Exception as e:
+            logger.error(f"Database operation failed: {e}")
             inserted = False
             db_result = {"error": str(e)}
 
@@ -102,30 +92,35 @@ async def orchestrate_crisis_workflow(request_data: Dict[str, Any]):
         if inserted:
             logger.info("Step 3: Getting aggregate data")
             try:
-                agg_resp = requests.post(GET_AGGREGATE_API_URL, json=classification, timeout=30)
-                if agg_resp.status_code == 200:
-                    agg_result = agg_resp.json()
-                    logger.info(f"Aggregate data: {agg_result}")
+                from routes.get_aggregate import get_aggregate
+                agg_result = await get_aggregate(classification)
+                logger.info(f"Aggregate data: {agg_result}")
+                
+                # Step 4: Check thresholds and trigger alert if needed
+                if "error" not in agg_result:
+                    tweet_count = agg_result.get("tweet_count", 0)
+                    aggregate_score = agg_result.get("aggregate_score", 0)
                     
-                    # Step 4: Check thresholds and trigger alert if needed
-                    if "error" not in agg_result:
-                        tweet_count = agg_result.get("tweet_count", 0)
-                        aggregate_score = agg_result.get("aggregate_score", 0)
-                        
-                        logger.info(f"Checking alert thresholds - tweet_count: {tweet_count}, aggregate_score: {aggregate_score}")
-                        
-                        if tweet_count > 7 and aggregate_score > 0.75:
-                            logger.info("Thresholds met - triggering crisis alert")
-                            alert_triggered = trigger_crisis_alert(agg_result)
+                    logger.info(f"Checking alert thresholds - tweet_count: {tweet_count}, aggregate_score: {aggregate_score}")
+                    
+                    if tweet_count > 7 and aggregate_score > 0.75:
+                        logger.info("Thresholds met - triggering crisis alert")
+                        try:
+                            from routes.trigger_call_for_location import trigger_call_for_location_endpoint
+                            alert_result = await trigger_call_for_location_endpoint({
+                                "location": agg_result.get("location"),
+                                "disaster_type": agg_result.get("disaster_type")
+                            })
+                            alert_triggered = alert_result.get("count", 0) > 0
                             logger.info(f"Alert triggered result: {alert_triggered}")
-                        else:
-                            logger.info("Thresholds not met - no alert triggered")
-                else:
-                    agg_result = {"error": agg_resp.text}
-                    logger.warning(f"Aggregate API failed: {agg_resp.text}")
+                        except Exception as e:
+                            logger.error(f"Failed to trigger crisis alert: {e}")
+                            alert_triggered = False
+                    else:
+                        logger.info("Thresholds not met - no alert triggered")
                     
-            except requests.RequestException as e:
-                logger.error(f"Aggregate API request failed: {e}")
+            except Exception as e:
+                logger.error(f"Aggregate operation failed: {e}")
                 agg_result = {"error": str(e)}
 
         # Return comprehensive result
