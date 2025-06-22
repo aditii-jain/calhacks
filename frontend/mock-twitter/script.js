@@ -165,30 +165,39 @@ class MockTwitterApp {
         postBtn.disabled = true;
 
         try {
-            // Combine text and location
+            // Create post object for display (keeping location separate)
+            const post = {
+                image: null,
+                timestamp: new Date().toISOString(),
+                text: text,
+                location: location || null
+            };
+            
+            // Create server post object (combining text and location)
             let combinedText = text;
             if (location) {
                 combinedText = text + ' ' + location;
             }
-            // Create post object with only required fields
-            const post = {
+            const serverPost = {
                 image: null,
-                timestamp: new Date().toISOString(),
+                timestamp: post.timestamp,
                 text: combinedText
             };
             // Handle image if present
             if (this.currentImageFile) {
-                post.image = await this.convertImageToBase64(this.currentImageFile);
+                const imageBase64 = await this.convertImageToBase64(this.currentImageFile);
+                post.image = imageBase64;
+                serverPost.image = imageBase64;
             }
-            // Add post to feed
+            // Add post to feed (with separate location for display)
             this.addPostToFeed(post);
-            // Save post to JSON file
+            // Save post to JSON file (with combined text+location)
             await fetch('http://localhost:8000/save-post', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(post)
+                body: JSON.stringify(serverPost)
             });
             // Reset form
             this.resetComposer();
@@ -267,6 +276,11 @@ class MockTwitterApp {
                 ${post.image ? `
                     <div class="post-image" onclick="app.openImageModal('${post.image}')">
                         <img src="${post.image}" alt="Post image" loading="lazy">
+                    </div>
+                ` : ''}
+                ${post.location ? `
+                    <div class="post-location">
+                        📍 ${post.location}
                     </div>
                 ` : ''}
             </div>
@@ -357,19 +371,27 @@ class MockTwitterApp {
         ];
         // Add sample posts to feed and save to JSON
         samplePosts.forEach(async (post) => {
-            // Combine text and location
+            // Create display post (keeping location separate)
+            const displayPost = {
+                image: post.image,
+                timestamp: post.timestamp,
+                text: post.text,
+                location: post.location
+            };
+            
+            // Create server post (combining text and location)
             let combinedText = post.text;
             if (post.location) {
                 combinedText = post.text + ' ' + post.location;
             }
-            // Only keep required fields
-            const minimalPost = {
+            const serverPost = {
                 image: post.image,
                 timestamp: post.timestamp,
                 text: combinedText
             };
-            this.posts.push(minimalPost);
-            this.renderPost(minimalPost);
+            
+            this.posts.push(displayPost);
+            this.renderPost(displayPost);
             // Save to JSON file
             try {
                 await fetch('http://localhost:8000/save-post', {
@@ -377,7 +399,7 @@ class MockTwitterApp {
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(minimalPost)
+                    body: JSON.stringify(serverPost)
                 });
             } catch (error) {
                 console.error('Error saving sample post:', error);
