@@ -1,5 +1,6 @@
 import os
 import time
+import requests
 from vapi import Vapi
 from dotenv import load_dotenv
 from analyze_transcript import analyze_transcript, get_google_maps_pin
@@ -13,6 +14,36 @@ try:
 except Exception as error:
     print(f"Error connecting to Vapi client: {error}")
     raise error
+
+TEXTBELT_API_KEY = os.getenv("TEXTBELT_API_KEY") or "558eda4c96a2cc3f0eb6d8f0d12fc6a4b29eb98dKUoSGxDY8Sdpm4NRujkHGqFp1"
+TEXTBELT_URL = "https://textbelt.com/text"
+
+# Dummy function to get emergency contacts from Supabase
+# Replace with real Supabase query
+def get_emergency_contacts(phone_number):
+    # Query Supabase for the user with the given phone number
+    from supabase import create_client, Client
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_ANON_KEY")
+    supabase: Client = create_client(url, key)
+    resp = supabase.table("users").select("emergency_contacts").eq("phone_number", phone_number).execute()
+    if resp.data and resp.data[0].get("emergency_contacts"):
+        contacts = resp.data[0]["emergency_contacts"]
+        # contacts is expected to be a list of dicts with 'phone' keys
+        return [c["phone"] for c in contacts if "phone" in c]
+    return []
+
+def send_sms(phone, message):
+    resp = requests.post(
+        TEXTBELT_URL,
+        data={
+            'phone': phone,
+            'message': message,
+            'key': TEXTBELT_API_KEY
+        }
+    )
+    print(f"[DEBUG] SMS sent to {phone}: {resp.text}")
+    return resp.json()
 
 def trigger_emergency_call(phone_number: str, location: str, natural_disaster: str, timeout_minutes: int = 10) -> tuple[bool, bool, str]:
     """
@@ -76,8 +107,8 @@ def trigger_emergency_call(phone_number: str, location: str, natural_disaster: s
         analysis = analyze_transcript(transcript)
         
         # Extract boolean results
-        send_directions = analysis['wants_shelter_directions'] == True
-        contact_emergency = analysis['wants_emergency_contacts'] == True
+        send_directions = bool(analysis.get('shelter_location'))
+        contact_emergency = analysis.get('wants_emergency_contacts') is True
         
         # Extract shelter location and generate Google Maps pin
         shelter_location = analysis.get('shelter_location')
@@ -89,6 +120,14 @@ def trigger_emergency_call(phone_number: str, location: str, natural_disaster: s
         print(f"   Shelter Location: {shelter_location or 'Not specified'}")
         if google_maps_pin:
             print(f"   Google Maps Pin: {google_maps_pin}")
+            # Send SMS to user with shelter directions
+            send_sms(phone_number, f"🚨 Emergency Shelter Directions: {google_maps_pin}")
+        
+        if contact_emergency:
+            # Dummy: get emergency contacts from Supabase
+            emergency_contacts = get_emergency_contacts(phone_number)
+            for contact in emergency_contacts:
+                send_sms(contact, f"🚨 Emergency: {phone_number} may need help. Location: {location} - {google_maps_pin or ''}")
         
         return (send_directions, contact_emergency, google_maps_pin)
         
@@ -217,4 +256,4 @@ def example_usage():
     return (send_directions, contact_emergency, google_maps_pin)
 
 if __name__ == "__main__":
-    example_usage() 
+    example_usage()
