@@ -16,7 +16,11 @@ models = {}
 async def lifespan(app: FastAPI):
     """Handle startup and shutdown events"""
     # Startup
+    import os
     logger.info("🚀 Crisis-MMD Backend starting up...")
+    logger.info(f"🔍 PORT env var: {os.environ.get('PORT', 'NOT SET')}")
+    logger.info(f"🔍 SUPABASE_URL: {os.environ.get('SUPABASE_URL', 'NOT SET')[:50]}...")
+    logger.info(f"🔍 USE_SUPABASE: {os.environ.get('USE_SUPABASE', 'NOT SET')}")
     logger.info("📊 Initializing classified data storage and retrieval system...")
     logger.info("👥 Initializing user authentication and management system...")
     
@@ -81,19 +85,49 @@ async def general_exception_handler(request, exc):
 @app.get("/")
 async def root():
     """Root endpoint - API status"""
+    import os
     return {
         "message": "Crisis-MMD API is running",
         "status": "healthy",
         "version": "2.0.0",
-        "description": "Multimodal Disaster Analysis with user authentication and crisis alert system"
+        "description": "Multimodal Disaster Analysis with user authentication and crisis alert system",
+        "debug_info": {
+            "port": os.environ.get("PORT", "NOT SET"),
+            "host": "0.0.0.0",
+            "environment": "production" if not os.environ.get("DEBUG", "true").lower() == "true" else "development"
+        }
+    }
+
+@app.get("/debug")
+async def debug_info():
+    """Debug endpoint to check environment"""
+    import os
+    return {
+        "environment_variables": {
+            "PORT": os.environ.get("PORT", "NOT SET"),
+            "DEBUG": os.environ.get("DEBUG", "NOT SET"),
+            "USE_SUPABASE": os.environ.get("USE_SUPABASE", "NOT SET"),
+            "SUPABASE_URL_SET": bool(os.environ.get("SUPABASE_URL")),
+            "VAPI_API_KEY_SET": bool(os.environ.get("VAPI_API_KEY"))
+        },
+        "server_info": {
+            "uvicorn_accessible": True,
+            "fastapi_running": True,
+            "timestamp": "2024-01-01"
+        }
     }
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    import os
     return {
         "status": "healthy",
         "models_loaded": len(models),
+        "port": os.environ.get("PORT", "NOT SET"),
+        "supabase_configured": bool(os.environ.get("SUPABASE_URL")),
+        "use_supabase": os.environ.get("USE_SUPABASE", "NOT SET"),
+        "environment_check": "OK",
         "available_endpoints": [
             "/",
             "/health",
@@ -130,6 +164,9 @@ app.include_router(crisis_map.router, prefix="/api/v1", tags=["crisis-map"])
 if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 8000))
+    print(f"🚀 Starting server on port {port}")
+    print(f"🔍 Environment PORT: {os.environ.get('PORT', 'NOT SET')}")
+    print(f"🌐 Server will be accessible at: http://0.0.0.0:{port}")
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
