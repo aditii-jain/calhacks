@@ -11,6 +11,8 @@ import requests
 import google.generativeai as genai
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs
+import io
+from PIL import Image
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -52,13 +54,18 @@ class handler(BaseHTTPRequestHandler):
 
             # Download image if URL provided
             image_bytes = None
+            image_pil = None
             if image_url:
                 try:
                     img_response = requests.get(image_url, timeout=10)
                     img_response.raise_for_status()
                     image_bytes = img_response.content
+                    image_pil = Image.open(io.BytesIO(image_bytes))
                 except Exception as e:
                     print(f"Failed to download image: {e}")
+                    image_pil = None
+            else:
+                image_pil = None
 
             # Create prompt
             prompt = f"""
@@ -104,8 +111,8 @@ Image URL: {image_url}
 
             # Generate response
             model = genai.GenerativeModel('gemini-2.5-flash')
-            if image_bytes:
-                gemini_response = model.generate_content([prompt, image_bytes])
+            if image_pil:
+                gemini_response = model.generate_content([prompt, image_pil])
             else:
                 gemini_response = model.generate_content(prompt)
 
