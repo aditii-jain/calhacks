@@ -13,12 +13,12 @@ def extract_shelter_and_contacts_gemini(transcript):
 
     prompt = f"""
 You are an expert assistant. Given the following emergency call transcript, extract:
-1. The most likely shelter location mentioned by the user or the AI (empty string if none).
+1. All shelter locations/names mentioned by the AI during the call (return as array of strings, empty array if none).
 2. Whether the user wants their emergency contacts notified (true/false/unknown).
 
 Return ONLY a valid JSON object with these exact keys:
 {{
-    "shelter_location": "...",
+    "shelter_locations": [...],
     "wants_emergency_contacts": ...
 }}
 
@@ -31,7 +31,7 @@ Transcript:
     start_idx = response_text.find('{')
     end_idx = response_text.rfind('}') + 1
     if start_idx == -1 or end_idx == 0:
-        return {"shelter_location": None, "wants_emergency_contacts": None}
+        return {"shelter_locations": [], "wants_emergency_contacts": None}
     json_str = response_text[start_idx:end_idx]
     result = json.loads(json_str)
     return result
@@ -72,8 +72,12 @@ if __name__ == "__main__":
     result = analyze_transcript(transcript)
     print("\nGemini Analysis Result:")
     print(json.dumps(result, indent=2))
-    if result.get("shelter_location"):
-        print("Google Maps Link:", get_google_maps_pin(result["shelter_location"]))
+    shelter_locations = result.get("shelter_locations", [])
+    if shelter_locations:
+        print(f"Shelter locations: {shelter_locations}")
+        for i, location in enumerate(shelter_locations[:3]):  # Show first 3
+            print(f"  {i+1}. {location}")
+            print(f"     Google Maps: {get_google_maps_pin(location)}")
     if result.get("wants_emergency_contacts") is True:
         print("User wants emergency contacts notified (send SMS)")
     elif result.get("wants_emergency_contacts") is False:

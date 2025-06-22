@@ -125,6 +125,48 @@ def get_emergency_contacts(phone_number):
     
     return []
 
+def get_user_name(phone_number):
+    """Get user's name from Supabase active_users table"""
+    try:
+        print(f"📱 Looking up user name for {phone_number}")
+        from supabase import create_client, Client
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_ANON_KEY")
+        supabase: Client = create_client(url, key)
+        
+        # Try multiple phone number formats to find the user
+        phone_formats = [
+            phone_number,                          # Original format: +16692209078
+            phone_number.replace('+1', '+'),       # Remove country code: +6692209078  
+            phone_number.replace('+', ''),         # No plus: 16692209078
+            phone_number.replace('+1', ''),        # No country code or plus: 6692209078
+            '+1' + phone_number.replace('+', '').replace('1', '', 1) if phone_number.startswith('+1') else '+1' + phone_number.replace('+', ''),  # Ensure +1 prefix
+        ]
+        
+        # Remove duplicates while preserving order
+        phone_formats = list(dict.fromkeys(phone_formats))
+        print(f"📱 DEBUG: Will try these phone formats for name lookup: {phone_formats}")
+        
+        resp = None
+        for phone_format in phone_formats:
+            print(f"📱 Trying phone format for name: '{phone_format}'")
+            resp = supabase.table("active_users").select("name, phone_number").eq("phone_number", phone_format).execute()
+            print(f"📱 Name query result for '{phone_format}': {len(resp.data)} users found")
+            if resp.data:
+                user_name = resp.data[0].get('name')
+                print(f"📱 ✅ Found user name: '{user_name}' for phone format: '{phone_format}'")
+                return user_name
+        
+        print(f"📱 ❌ No user name found for {phone_number}")
+        return None
+            
+    except Exception as e:
+        print(f"📱 Error getting user name: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    return None
+
 def send_sms(phone, message):
     """Send SMS using TextBelt API"""
     try:
@@ -247,22 +289,31 @@ def trigger_emergency_call(phone_number: str, location: str, natural_disaster: s
         analysis = analyze_transcript(transcript)
         
         # Extract boolean results
-        send_directions = bool(analysis.get('shelter_location'))
+        shelter_locations = analysis.get('shelter_locations', [])
+        send_directions = bool(shelter_locations)
         contact_emergency = analysis.get('wants_emergency_contacts') is True
         
-        # Extract shelter location and generate Google Maps pin
-        shelter_location = analysis.get('shelter_location')
+        # Generate Google Maps pin for first shelter (for backward compatibility)
+        shelter_location = shelter_locations[0] if shelter_locations else None
         google_maps_pin = get_google_maps_pin(shelter_location) if shelter_location else None
         
         print(f"📊 Results:")
         print(f"   Send Directions: {send_directions}")
         print(f"   Contact Emergency Contacts: {contact_emergency}")
-        print(f"   Shelter Location: {shelter_location or 'Not specified'}")
+        print(f"   Shelter Locations from transcript: {shelter_locations}")
         
-        if google_maps_pin:
-            print(f"   Google Maps Pin: {google_maps_pin}")
-            # Send SMS to user with shelter directions
-            send_sms(phone_number, f"🚨 Emergency Shelter Directions: {google_maps_pin}")
+        if shelter_locations:
+            # Send SMS to user with all shelter names from transcript (no URLs)
+            if len(shelter_locations) == 1:
+                shelter_text = shelter_locations[0]
+            elif len(shelter_locations) <= 3:
+                shelter_text = ", ".join(shelter_locations)
+            else:
+                # Limit to first 3 shelters
+                shelter_text = ", ".join(shelter_locations[:3])
+            
+            print(f"   Sending shelter info: {shelter_text}")
+            send_sms(phone_number, f"🏠 Emergency Shelters: {shelter_text}")
         
         if contact_emergency:
             print(f"📱 User wants emergency contacts notified - fetching contacts...")
@@ -271,9 +322,14 @@ def trigger_emergency_call(phone_number: str, location: str, natural_disaster: s
             print(f"📱 Found {len(emergency_contacts)} emergency contacts: {emergency_contacts}")
             
             if emergency_contacts:
+                # Get user's name for the emergency alert message
+                user_name = get_user_name(phone_number)
+                contact_identifier = user_name if user_name else phone_number
+                
                 for contact in emergency_contacts:
                     print(f"📱 Sending SMS to emergency contact: {contact}")
-                    sms_result = send_sms(contact, f"🚨 Emergency Alert: {phone_number} may need help due to {natural_disaster} in {location}. Shelter info: {google_maps_pin or 'Not available'}")
+                    # Send simple emergency alert without URLs, using user's name
+                    sms_result = send_sms(contact, f"🚨 Emergency Alert: {contact_identifier} may need assistance due to {natural_disaster} in {location}. Please check on them.")
                     print(f"📱 SMS result for {contact}: {sms_result}")
             else:
                 print(f"📱 No emergency contacts found for {phone_number}")
@@ -357,6 +413,8 @@ def _wait_for_transcript(call_id: str, timeout_minutes: int) -> str:
         print(f"Final transcript check failed: {e}")
     
     return None
+
+
 
 # Example usage function
 def example_usage():

@@ -3,23 +3,38 @@ import json
 import os
 import sys
 from datetime import datetime
+# Simple fallback configuration for when backend config is not available
+class SimpleSettings:
+    def __init__(self):
+        self.supabase_url = os.environ.get("SUPABASE_URL")
+        self.supabase_service_key = os.environ.get("SUPABASE_SERVICE_KEY")
 
 # Add the parent backend directory to Python path to import config and supabase
 backend_path = os.path.join(os.path.dirname(__file__), '..', '..', 'backend')
 sys.path.insert(0, backend_path)  # Insert at beginning to prioritize our config
 
 try:
-    # Import our backend config specifically
-    import config
+    # Try to import supabase first
     from supabase import create_client
-    settings = config.settings
+    
+    # Try to import our backend config
+    try:
+        import config
+        settings = config.settings
+        print("✅ Backend config loaded successfully")
+    except ImportError as backend_import_error:
+        print(f"⚠️  Backend config not available: {backend_import_error}")
+        print("   Using simple environment-based config")
+        settings = SimpleSettings()
+    
     SUPABASE_AVAILABLE = True
     print("✅ Supabase integration available")
 except ImportError as e:
     SUPABASE_AVAILABLE = False
     print(f"⚠️  Supabase not available: {e}")
+    print("   Install with: pip install supabase")
     print("   Falling back to JSON-only storage")
-    settings = None
+    settings = SimpleSettings()
 
 class PostsHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
