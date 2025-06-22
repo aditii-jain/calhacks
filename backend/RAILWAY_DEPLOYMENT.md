@@ -113,16 +113,33 @@ MAX_BATCH_SIZE=1000
 
 ### Common Issues
 
-1. **Build Failures**
+1. **"pip: command not found" Error**
+   If you get this error during build, try these solutions:
+   
+   **Solution A**: Replace `nixpacks.toml` with the simple version:
+   ```bash
+   cp nixpacks-simple.toml nixpacks.toml
+   ```
+   
+   **Solution B**: Let Railway auto-detect Python (delete nixpacks.toml):
+   ```bash
+   rm nixpacks.toml
+   ```
+   
+   **Solution C**: Use the build script approach:
+   - The `build.sh` script handles Python/pip detection automatically
+
+2. **Build Failures**
    - Check that all dependencies are in `requirements.txt`
    - Verify Python version compatibility
+   - Try removing `nixpacks.toml` to let Railway auto-detect
 
-2. **Runtime Errors**
+3. **Runtime Errors**
    - Check environment variables are set correctly
    - Verify Supabase credentials
    - Check Railway logs for specific error messages
 
-3. **Connection Issues**
+4. **Connection Issues**
    - Ensure your frontend CORS settings allow the Railway domain
    - Update any hardcoded localhost URLs
 
