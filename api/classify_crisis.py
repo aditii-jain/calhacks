@@ -9,38 +9,59 @@ import os
 import json
 import requests
 import google.generativeai as genai
+from http.server import BaseHTTPRequestHandler
+from urllib.parse import parse_qs
 
-def handler(request, response):
-    try:
-        if request.method != "POST":
-            response.status_code = 405
-            return response.send("Method Not Allowed")
+class handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        try:
+            # Get API key
+            API_KEY = os.getenv('GOOGLE_API_KEY')
+            if not API_KEY:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "GOOGLE_API_KEY environment variable not set"}).encode())
+                return
 
-        API_KEY = os.getenv('GOOGLE_API_KEY')
-        if not API_KEY:
-            response.status_code = 500
-            return response.send("GOOGLE_API_KEY environment variable not set")
+            # Configure Gemini
+            genai.configure(api_key=API_KEY)
 
-        genai.configure(api_key=API_KEY)
-
-        request_data = request.json()
-        tweet_text = request_data.get('tweet_text', '')
-        image_url = request_data.get('image_url', '')
-
-        if not tweet_text and not image_url:
-            response.status_code = 400
-            return response.send("Either tweet_text or image_url must be provided")
-
-        image_bytes = None
-        if image_url:
+            # Read request body
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            
             try:
-                img_response = requests.get(image_url, timeout=10)
-                img_response.raise_for_status()
-                image_bytes = img_response.content
-            except Exception as e:
-                print(f"Failed to download image: {e}")
+                request_data = json.loads(post_data.decode('utf-8'))
+            except json.JSONDecodeError:
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Invalid JSON in request body"}).encode())
+                return
 
-        prompt = f"""
+            tweet_text = request_data.get('tweet_text', '')
+            image_url = request_data.get('image_url', '')
+
+            if not tweet_text and not image_url:
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Either tweet_text or image_url must be provided"}).encode())
+                return
+
+            # Download image if URL provided
+            image_bytes = None
+            if image_url:
+                try:
+                    img_response = requests.get(image_url, timeout=10)
+                    img_response.raise_for_status()
+                    image_bytes = img_response.content
+                except Exception as e:
+                    print(f"Failed to download image: {e}")
+
+            # Create prompt
+            prompt = f"""
 You are an expert crisis analyst. Analyze the provided tweet text and/or image to classify crisis information.
 
 **Required Classifications:**
@@ -81,33 +102,55 @@ Tweet text: {tweet_text}
 Image URL: {image_url}
 """
 
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        if image_bytes:
-            gemini_response = model.generate_content([prompt, image_bytes])
-        else:
-            gemini_response = model.generate_content(prompt)
+            # Generate response
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            if image_bytes:
+                gemini_response = model.generate_content([prompt, image_bytes])
+            else:
+                gemini_response = model.generate_content(prompt)
 
-        response_text = gemini_response.text.strip()
-        start_idx = response_text.find('{')
-        end_idx = response_text.rfind('}') + 1
-        if start_idx == -1 or end_idx == 0:
-            raise ValueError("No JSON found in model response")
-        json_str = response_text[start_idx:end_idx]
-        result = json.loads(json_str)
+            response_text = gemini_response.text.strip()
+            
+            # Extract JSON from response
+            start_idx = response_text.find('{')
+            end_idx = response_text.rfind('}') + 1
+            if start_idx == -1 or end_idx == 0:
+                raise ValueError("No JSON found in model response")
+            
+            json_str = response_text[start_idx:end_idx]
+            result = json.loads(json_str)
 
-        required_keys = ['disaster_type', 'informativeness', 'humanitarian_categories',
-                         'location', 'damage_severity', 'seriousness_score']
-        for key in required_keys:
-            if key not in result:
-                result[key] = None if key != 'humanitarian_categories' else ['none']
+            # Ensure all required keys are present
+            required_keys = ['disaster_type', 'informativeness', 'humanitarian_categories',
+                           'location', 'damage_severity', 'seriousness_score']
+            for key in required_keys:
+                if key not in result:
+                    result[key] = None if key != 'humanitarian_categories' else ['none']
 
-        response.status_code = 200
-        response.headers["Content-Type"] = "application/json"
-        return response.send(json.dumps(result, indent=2))
+            # Send successful response
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(result, indent=2).encode())
 
-    except json.JSONDecodeError:
-        response.status_code = 400
-        return response.send("Invalid JSON in request body")
-    except Exception as e:
-        response.status_code = 500
-        return response.send(f"Classification failed: {str(e)}")
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": f"Classification failed: {str(e)}"}).encode())
+
+    def do_OPTIONS(self):
+        # Handle CORS preflight requests
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+
+    def do_GET(self):
+        # Simple health check
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({"status": "Crisis Classification API is running"}).encode())
