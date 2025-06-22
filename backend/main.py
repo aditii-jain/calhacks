@@ -164,8 +164,20 @@ async def health_check():
             "/api/v1/get-aggregate/health",
             # Emergency endpoints
             "/api/v1/trigger-call-for-location",
-            "/api/v1/trigger-call-for-location/health"
+            "/api/v1/trigger-call-for-location/health",
+            # Config endpoints
+            "/api/v1/config/supabase"
         ]
+    }
+
+@app.get("/api/v1/config/supabase")
+async def get_supabase_config():
+    """Get Supabase configuration for frontend applications"""
+    import os
+    return {
+        "supabase_url": os.environ.get("SUPABASE_URL"),
+        "supabase_anon_key": os.environ.get("SUPABASE_ANON_KEY"),
+        "configured": bool(os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_ANON_KEY"))
     }
 
 # Include routers
